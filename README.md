@@ -9,8 +9,6 @@
 
 `nuxt-hydration-doctor` is a Nuxt module that turns Vue's vague `[Vue warn]: Hydration node mismatch` into something you can act on: the **exact `.vue` file, line and column**, a **side-by-side diff of the server HTML and the client DOM**, and a **likely root cause with a fix you can paste**. It works in `nuxt dev` only and adds nothing to your production build.
 
-> **Status: 1.0.** All six planned phases are implemented and tested. See [Verified against](#verified-against) for exactly what has and has not been run.
-
 ## Table of contents
 
 - [Why](#why)
