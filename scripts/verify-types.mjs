@@ -10,6 +10,7 @@ import { resolve } from 'node:path';
 
 const PUBLIC_TYPES = [
   'ModuleOptions',
+  'HydrationDoctorApi',
   'HydrationIssue',
   'HydrationMetrics',
   'HydrationMismatchKind',

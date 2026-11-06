@@ -64,6 +64,7 @@ export default hydrationDoctorModule;
  * file (a standalone src/types.ts is ignored), so everything consumers may import from
  * "nuxt-hydration-doctor" is listed here, and nowhere else.
  */
+export type { HydrationDoctorApi } from './runtime/domain/api';
 export type {
   DiagnosticCategory,
   DiagnosticResult,
