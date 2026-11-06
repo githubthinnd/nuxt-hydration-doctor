@@ -2,7 +2,11 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["node"]
+    "types": ["node"],
+    // Off here on purpose: the module builder (mkdist) and vue-tsc read this file to emit and
+    // check declarations for .vue files, and the code they generate from <script setup> cannot
+    // satisfy it. The strict check for .ts runs in tsconfig.isolated.json.
+    "isolatedDeclarations": false
   },
   "include": ["src"]
 }

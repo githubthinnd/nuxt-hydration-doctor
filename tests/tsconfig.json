@@ -6,6 +6,6 @@
     "isolatedDeclarations": false,
     "declaration": false
   },
-  "include": ["."],
+  "include": [".", "../src/vue-shim.d.ts"],
   "exclude": ["architecture/fixtures"]
 }

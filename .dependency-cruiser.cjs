@@ -12,7 +12,8 @@
  *     runtime/domain       shared kernel: types, options, errors           -> (nothing)
  *     runtime/engine       pure heuristic diagnostics                      -> domain
  *     runtime/interceptor  warning capture and DOM snapshots               -> domain
- *     runtime/components   HUD (Shadow DOM)                                -> domain
+ *     runtime/hud          Shadow DOM host, overlay rect tracking          -> domain
+ *     runtime/components   presentational HUD component (props in, events out) -> domain
  *     runtime/plugin.client.ts  runtime composition root                   -> all runtime layers
  *
  * `runtime/domain` is the only code shared by both worlds. It lives under runtime/ because the
@@ -76,6 +77,14 @@ module.exports = {
       severity: 'error',
       from: { path: '^src/runtime/interceptor/' },
       to: { path: '^src/', pathNot: '^src/runtime/(interceptor|domain)/' },
+    },
+    {
+      name: 'runtime-hud-depends-only-on-domain',
+      severity: 'error',
+      comment:
+        'The HUD mounting layer is handed its component, diff and clipboard by the composition root.',
+      from: { path: '^src/runtime/hud/' },
+      to: { path: '^src/', pathNot: '^src/runtime/(hud|domain)/' },
     },
     {
       name: 'runtime-components-depend-only-on-domain',

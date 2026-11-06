@@ -1,5 +1,7 @@
 import js from '@eslint/js';
+import pluginVue from 'eslint-plugin-vue';
 import tseslint from 'typescript-eslint';
+import vueParser from 'vue-eslint-parser';
 
 const BROWSER_GLOBALS = [
   'window',
@@ -78,6 +80,31 @@ export default tseslint.config(
     // "unnecessary" conditions are intentional here.
     files: ['src/runtime/domain/options.ts', 'src/module.ts'],
     rules: { '@typescript-eslint/no-unnecessary-condition': 'off' },
+  },
+  ...pluginVue.configs['flat/essential'],
+  {
+    // Single-file components: the script is parsed as TypeScript, but type-aware rules are left
+    // to `vue-tsc` (see `npm run typecheck`); type-aware linting of .vue is not reliable.
+    files: ['**/*.vue'],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions: {
+      parser: vueParser,
+      parserOptions: {
+        parser: tseslint.parser,
+        extraFileExtensions: ['.vue'],
+        sourceType: 'module',
+      },
+    },
+    rules: {
+      ...tseslint.configs.disableTypeChecked.rules,
+      // Server and page markup is untrusted: it must only ever be rendered as text.
+      'vue/no-v-html': 'error',
+    },
+  },
+  {
+    // Test components are deliberately tiny and named like the scenario they model.
+    files: ['tests/**/*.ts'],
+    rules: { 'vue/multi-word-component-names': 'off' },
   },
   {
     files: ['**/*.js', '**/*.cjs', '**/*.mjs'],

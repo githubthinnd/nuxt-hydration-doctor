@@ -99,6 +99,7 @@ describe('hydration capture (real Vue hydration)', () => {
     expect(issue.kind).toBe('text-mismatch');
     expect(issue.componentName).toBe('Card');
     expect(issue.location).toEqual({ file: 'Card.vue', line: 3, column: 3 });
+    expect(issue.occurrence).toBe(0);
     expect(issue.serverHtml).toBe('<p data-nhd-loc="Card.vue:3:3">server text</p>');
     expect(issue.clientHtml).toBe('<p data-nhd-loc="Card.vue:3:3">client text</p>');
     expect(issue.route).toBe('/test');
@@ -151,6 +152,7 @@ describe('hydration capture (real Vue hydration)', () => {
     );
 
     expect(issue.componentName).toBe('Item');
+    expect(issue.occurrence).toBe(1);
     expect(issue.serverHtml).toBe('<li data-nhd-loc="Item.vue:1:1">SERVER</li>');
     expect(issue.clientHtml).toBe('<li data-nhd-loc="Item.vue:1:1">CLIENT</li>');
   });
@@ -185,6 +187,7 @@ describe('hydration capture (real Vue hydration)', () => {
     const issue = only(hydrate('<p>server</p>', Plain));
 
     expect(issue.location).toBeNull();
+    expect(issue.occurrence).toBeNull();
     expect(issue.serverHtml).toBeNull();
     expect(issue.clientHtml).toBe('<p>client</p>');
   });

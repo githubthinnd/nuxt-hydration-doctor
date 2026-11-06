@@ -55,7 +55,7 @@
     "dev:prepare": "nuxt-module-build build --stub && nuxt-module-build prepare && nuxt prepare playground",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "build": "nuxt-module-build build",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.pure.json --noEmit && tsc -p tests/tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.isolated.json --noEmit && vue-tsc -p tsconfig.json --noEmit && tsc -p tsconfig.pure.json --noEmit && vue-tsc -p tests/tsconfig.json --noEmit",
     "lint": "eslint .",
     "format": "prettier --write . --ignore-path .gitignore --ignore-path .prettierignore",
     "format:check": "prettier --check . --ignore-path .gitignore --ignore-path .prettierignore",
@@ -83,14 +83,19 @@
     "@nuxt/test-utils": "^4.3.4",
     "@playwright/test": "^1.65.0",
     "@types/node": "^22.20.5",
+    "@vitejs/plugin-vue": "^6.0.10",
     "dependency-cruiser": "^18.7.2",
     "eslint": "^10.14.0",
+    "eslint-plugin-vue": "^10.12.0",
     "happy-dom": "^21.0.4",
     "nuxt": "^4.6.4",
     "prettier": "^3.9.10",
     "publint": "^0.3.25",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.72.1",
-    "vitest": "^5.1.0"
+    "vitest": "^5.1.0",
+    "vue": "^3.5.45",
+    "vue-eslint-parser": "^10.4.1",
+    "vue-tsc": "^3.3.14"
   }
 }

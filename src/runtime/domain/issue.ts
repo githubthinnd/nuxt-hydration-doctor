@@ -25,6 +25,12 @@ export interface HydrationIssue {
   readonly componentName: string | null;
   /** Null when the offending node has no `data-nhd-loc` ancestor. */
   readonly location: SourceLocation | null;
+  /**
+   * Position of the offending element among all elements sharing `location` (one template tag
+   * rendered several times, as with v-for). Lets the HUD find the same element again; null when
+   * there is no location.
+   */
+  readonly occurrence: number | null;
   /** Markup the server rendered for the mismatched subtree, when it could be recovered. */
   readonly serverHtml: string | null;
   /** Markup the client rendered for the same subtree. */

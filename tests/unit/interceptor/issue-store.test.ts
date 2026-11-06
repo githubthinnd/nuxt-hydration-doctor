@@ -10,6 +10,7 @@ function issue(id: string): HydrationIssue {
     route: '/',
     componentName: null,
     location: null,
+    occurrence: null,
     serverHtml: null,
     clientHtml: null,
     breadcrumbs: [],

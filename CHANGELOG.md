@@ -4,6 +4,15 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ## [Unreleased]
 
+### Added (Phase 4)
+
+- `HydrationDoctorHUD.vue` (`runtime/components`): presentational HUD, props in and events out. Floating badge with the mismatch count, issue tabs, source location (with Copy), message, breadcrumbs, and a side-by-side **Server Rendered HTML** / **Client Rendered DOM** diff with matching rows, changed rows (diverging part marked) and added/removed rows. Page content is only ever rendered as text; `vue/no-v-html` is an error.
+- `runtime/hud/mount-hud.ts`: mounts the HUD in an open Shadow DOM root on a host reset with `all: initial`, outside the application root so it is never hydrated. Its stylesheet is rendered inside the shadow root, so no CSS leaks in either direction. Escape closes the panel; `hud.autoOpen` opens it on the first issue.
+- `runtime/hud/overlay.ts`: red outline per issue, tracked in viewport coordinates (scroll in any scroller, resize, ResizeObserver, one animation frame per burst, notify only on change); clicking a label selects the issue. Elements are re-resolved by location and occurrence on every update.
+- `runtime/engine/html-diff.ts`: pure HTML diff (tokenise, one node per line, LCS alignment, inline marking of the differing part, hidden attributes such as `data-nhd-loc`, 400-line cap).
+- `HydrationIssue.occurrence` (index among elements sharing a location) so the overlay can find the same element again.
+- Tooling: `vue-tsc`, `tsconfig.isolated.json` (strict `.ts` check) and a `verify:package` guard against empty declaration files (mkdist had emitted empty `.vue.d.ts` while reporting success) and `eslint-plugin-vue` for `.vue`, `@vitejs/plugin-vue` for the tests, `src/vue-shim.d.ts`, a `runtime-hud-depends-only-on-domain` arch rule with fixtures.
+
 ### Added (Phase 3)
 
 - Runtime interceptor (`src/runtime/interceptor`): installs `app.config.warnHandler` (chaining any existing handler, and printing like Vue when there is none) and listens to `vue:error`; recognises Vue's text, node and children hydration mismatches (including the 3.5 "text content mismatch" wording).

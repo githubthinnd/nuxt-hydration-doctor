@@ -1,6 +1,9 @@
 import { defineNuxtPlugin, useRuntimeConfig } from 'nuxt/app';
 import { INTERNAL_LOG_PREFIX, RUNTIME_CONFIG_KEY } from './domain/constants';
 import { parseRuntimeOptions } from './domain/options';
+import HydrationDoctorHUD from './components/HydrationDoctorHUD.vue';
+import { diffHtml } from './engine/html-diff';
+import { mountHud } from './hud/mount-hud';
 import { createInterceptor } from './interceptor/interceptor';
 import { installWarnHandler } from './interceptor/install';
 import { captureServerSnapshot } from './interceptor/snapshot';
@@ -9,6 +12,19 @@ import { captureServerSnapshot } from './interceptor/snapshot';
 const MAX_SNAPSHOT_CHARS = 2_000_000;
 /** Completes pending captures even if `app:mounted` never fires (a crashed hydration, say). */
 const SAFETY_FLUSH_MS = 5000;
+
+function copyToClipboard(text: string): void {
+  if ('clipboard' in navigator) navigator.clipboard.writeText(text).catch(() => undefined);
+}
+
+function observeResize(element: Element, callback: () => void): () => void {
+  if (typeof ResizeObserver === 'undefined') return () => undefined;
+  const observer = new ResizeObserver(callback);
+  observer.observe(element);
+  return () => {
+    observer.disconnect();
+  };
+}
 
 function rootSelector(rootId: unknown): string {
   return typeof rootId === 'string' && /^[\w-]+$/.test(rootId) ? `#${rootId}` : '#__nuxt';
@@ -75,6 +91,37 @@ const hydrationDoctorPlugin: ReturnType<typeof defineNuxtPlugin> = defineNuxtPlu
       nuxtApp.hook('app:mounted', () => {
         interceptor.markMounted();
       });
+
+      if (options.hud.enabled) {
+        const hud = options.hud;
+        // Mounted after the application so the HUD is never part of the hydrated tree.
+        nuxtApp.hook('app:mounted', () => {
+          try {
+            mountHud({
+              document,
+              view: window,
+              component: HydrationDoctorHUD,
+              api: interceptor.api,
+              attribute: options.attribute,
+              autoOpen: hud.autoOpen,
+              toEntry: (issue) => ({
+                issue,
+                diff:
+                  issue.serverHtml !== null && issue.clientHtml !== null
+                    ? diffHtml(issue.serverHtml, issue.clientHtml, {
+                        hideAttributes: [options.attribute],
+                      })
+                    : null,
+              }),
+              copyText: copyToClipboard,
+              observeResize,
+              reportInternal,
+            });
+          } catch (error) {
+            reportInternal('could not mount the HUD', error);
+          }
+        });
+      }
       setTimeout(() => {
         interceptor.flush();
       }, SAFETY_FLUSH_MS);

@@ -102,9 +102,12 @@ export function createInterceptor(deps: InterceptorDeps): Interceptor {
     const stamp = stamped?.getAttribute(deps.attribute) ?? null;
 
     let serverHtml: string | null = null;
-    if (stamped !== null && stamp !== null && deps.snapshot !== null) {
-      const index = occurrenceIndex(deps.document, stamped, deps.attribute, stamp);
-      serverHtml = deps.snapshot.findHtml(deps.attribute, stamp, Math.max(index, 0));
+    let occurrence: number | null = null;
+    if (stamped !== null && stamp !== null) {
+      occurrence = Math.max(occurrenceIndex(deps.document, stamped, deps.attribute, stamp), 0);
+      if (deps.snapshot !== null) {
+        serverHtml = deps.snapshot.findHtml(deps.attribute, stamp, occurrence);
+      }
     }
     const clientElement = stamped ?? root;
 
@@ -116,6 +119,7 @@ export function createInterceptor(deps: InterceptorDeps): Interceptor {
       route: capture.route,
       componentName: capture.componentName,
       location: stamp === null ? null : parseSourceLocation(stamp),
+      occurrence: stamp === null ? null : occurrence,
       serverHtml: serverHtml === null ? null : truncate(serverHtml),
       clientHtml: clientElement === null ? null : truncate(clientElement.outerHTML),
       breadcrumbs: capture.breadcrumbs,
