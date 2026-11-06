@@ -43,9 +43,10 @@ describe('package manifest invariants', () => {
     expect(manifest['peerDependencies']).toEqual({ nuxt: '^3.15.0 || ^4.0.0' });
   });
 
-  it('stays private until the owner decides to publish', () => {
-    expect(manifest['private']).toBe(true);
-    expect(manifest['version']).toBe('0.0.0');
+  it('is publishable as a public 1.x package', () => {
+    expect(manifest['private']).toBeUndefined();
+    expect(manifest['version']).toMatch(/^1\.\d+\.\d+$/);
+    expect(manifest['publishConfig']).toEqual({ access: 'public' });
   });
 
   it('runs the full check before publishing', () => {

@@ -4,6 +4,16 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-06
+
+First public release: source-location stamping, warning capture, the Shadow DOM HUD with a server/client diff, evidence-based diagnosis, the Nuxt DevTools tab and the playground. The notes below group what was added since the last internal milestone.
+
+### Interface
+
+- The HUD, the Nuxt DevTools tab and the playground were redesigned with one set of design tokens, light and dark themes that follow the system setting, and responsive layouts. Class names the tests rely on are unchanged.
+- Copy now says whether it worked ("Copied to clipboard" or "Could not copy") and falls back to `execCommand` where the Clipboard API is missing (non-HTTPS origins); before, a failed copy was silent.
+- The playground gained an app shell, a landing page and a "what to look for" note per scenario. Decoration lives in its own components: Vue hydrates a long run of static elements by counting nodes and would stop reporting a mismatch inside it.
+
 ### Movable badge
 
 - The HUD badge can be dragged anywhere (pointer events: mouse, touch, pen) and moved with Alt + arrow keys, because it can sit on top of another debug bar. A press that moves less than 4 px is still a click, and the click that follows a drag does not toggle the panel.

@@ -1,7 +1,6 @@
 {
   "name": "nuxt-hydration-doctor",
-  "version": "0.0.0",
-  "private": true,
+  "version": "1.0.0",
   "description": "Nuxt module that intercepts, diffs and explains Vue 3 SSR hydration mismatches in development, with zero production footprint.",
   "keywords": [
     "nuxt",
@@ -39,6 +38,9 @@
         "./dist/types.d.mts"
       ]
     }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "files": [
     "dist",
