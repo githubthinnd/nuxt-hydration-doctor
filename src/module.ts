@@ -1,6 +1,14 @@
-import { addPlugin, addVitePlugin, createResolver, defineNuxtModule, useLogger } from '@nuxt/kit';
+import {
+  addPlugin,
+  addTypeTemplate,
+  addVitePlugin,
+  createResolver,
+  defineNuxtModule,
+  useLogger,
+} from '@nuxt/kit';
 import type { NuxtModule } from '@nuxt/schema';
 import { registerDevtools } from './devtools';
+import { resolveAllowedHosts } from './devtools/host';
 import { astInjector } from './plugins/ast-injector';
 import { CONFIG_KEY, MODULE_NAME, RUNTIME_CONFIG_KEY } from './runtime/domain/constants';
 import {
@@ -29,9 +37,39 @@ const hydrationDoctorModule: NuxtModule<ModuleOptions, ModuleOptions> =
     defaults: DEFAULT_OPTIONS,
     setup(userOptions, nuxt) {
       const options = resolveModuleOptions(userOptions);
-      if (!shouldActivate(options, nuxt.options.dev)) return;
-
       const resolver = createResolver(import.meta.url);
+
+      if (!shouldActivate(options, nuxt.options.dev)) {
+        // Inactive (`nuxt prepare`, a production build, `enabled: false`): nothing is registered at
+        // run time. Only a type declaration is written, so that editors still know the
+        // `$hydrationDoctor` that exists while developing; it is optional for that reason. It writes a
+        // .d.ts into `.nuxt/types` and nothing into any bundle. While the module is active Nuxt
+        // infers the property, non-optional, from the plugin itself, and a second declaration of
+        // the same property would only conflict with it.
+        addTypeTemplate({
+          filename: 'types/nuxt-hydration-doctor.d.ts',
+          getContents: () =>
+            [
+              `import type { HydrationDoctorApi } from '${resolver.resolve('./runtime/domain/api')}';`,
+              '',
+              "declare module '#app' {",
+              '  interface NuxtApp {',
+              '    $hydrationDoctor?: HydrationDoctorApi;',
+              '  }',
+              '}',
+              '',
+              "declare module 'vue' {",
+              '  interface ComponentCustomProperties {',
+              '    $hydrationDoctor?: HydrationDoctorApi;',
+              '  }',
+              '}',
+              '',
+              'export {};',
+              '',
+            ].join('\n'),
+        });
+        return;
+      }
 
       // The DevTools integration needs both our option and Nuxt DevTools itself to be on.
       const nuxtDevtools: unknown = nuxt.options.devtools;
@@ -67,7 +105,17 @@ const hydrationDoctorModule: NuxtModule<ModuleOptions, ModuleOptions> =
       );
 
       // Phase 6: the DevTools tab and the dev-only endpoint behind it.
-      if (devtoolsActive) registerDevtools(nuxt.options.rootDir);
+      if (devtoolsActive) {
+        registerDevtools({
+          rootDir: nuxt.options.rootDir,
+          // A layer's files are stamped with paths such as `../base/components/A.vue`.
+          layerDirs: nuxt.options._layers.map((layer) => layer.cwd),
+          allowedHosts: resolveAllowedHosts(
+            nuxt.options.devServer.host,
+            nuxt.options.vite.server?.allowedHosts,
+          ),
+        });
+      }
 
       if (options.debug) {
         useLogger(MODULE_NAME).info('Hydration Doctor is active (development only).');

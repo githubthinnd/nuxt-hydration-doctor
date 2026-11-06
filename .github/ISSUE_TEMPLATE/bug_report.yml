@@ -1,0 +1,47 @@
+name: Bug report
+description: A mismatch that is not caught, a wrong diagnosis, a crash in development, or anything in production that should not be there
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: nuxt-hydration-doctor version
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: nuxt
+    attributes:
+      label: Nuxt and Vue versions, Node.js and browser
+      placeholder: Nuxt 4.6.4, Vue 3.5.45, Node.js 24.21, Chrome 140
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does it go wrong?
+      options:
+        - A hydration mismatch is not detected
+        - The location (file, line) is wrong or missing
+        - The diagnosis is wrong or misleading
+        - The HUD
+        - The Nuxt DevTools tab
+        - Something of the module is present in a production build
+        - The build or the dev server breaks
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: The smallest component (or a link to a repository) that shows it. Please do not paste secrets or real user data; the diff in the HUD can contain page content.
+      render: vue
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected and what happened
+      description: For a wrong diagnosis, say what the real cause was.
+    validations:
+      required: true

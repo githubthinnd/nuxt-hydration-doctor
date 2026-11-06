@@ -86,7 +86,10 @@ export const ASSET_JS = `(function () {
   var KIND = {
     'text-mismatch': 'Text mismatch',
     'node-mismatch': 'Node mismatch',
-    'children-mismatch': 'Children mismatch'
+    'children-mismatch': 'Children mismatch',
+    'class-mismatch': 'Class mismatch',
+    'style-mismatch': 'Style mismatch',
+    'attribute-mismatch': 'Attribute mismatch'
   };
 
   var list = document.getElementById('list');
@@ -96,6 +99,8 @@ export const ASSET_JS = `(function () {
   var reports = [];
   var latest = 0;
   var generation = null;
+  var epoch = null;
+  var blocked = false;
   var toastTimer = null;
 
   // Builds an element. Strings become text nodes, so nothing is ever parsed as markup.
@@ -227,14 +232,16 @@ export const ASSET_JS = `(function () {
       list.appendChild(h('p', 'empty', ['No hydration mismatches reported yet. Load a page of your app in development.']));
       return;
     }
-    var order = [];
-    var groups = {};
+    // A Map, not an object: page load ids come from the browser, and "__proto__" or "constructor"
+    // must be ordinary keys, not properties of the object.
+    var groups = new Map();
     reports.forEach(function (report) {
-      if (!groups[report.pageLoadId]) { groups[report.pageLoadId] = []; order.push(report.pageLoadId); }
-      groups[report.pageLoadId].push(report);
+      var group = groups.get(report.pageLoadId);
+      if (!group) { group = []; groups.set(report.pageLoadId, group); }
+      group.push(report);
     });
-    order.reverse().forEach(function (id) {
-      var items = groups[id].slice().reverse();
+    Array.from(groups.keys()).reverse().forEach(function (id) {
+      var items = groups.get(id).slice().reverse();
       list.appendChild(h('h2', 'group-title', ['Page load ' + id + ' \\u00b7 ' + items.length + (items.length === 1 ? ' issue' : ' issues')]));
       items.forEach(function (report) { list.appendChild(card(report)); });
     });
@@ -243,19 +250,23 @@ export const ASSET_JS = `(function () {
   function poll() {
     return fetch(BASE + '/issues?since=' + latest, { headers: HEADERS, cache: 'no-store' })
       .then(function (response) {
+        blocked = response.status === 403;
         if (!response.ok) throw new Error('HTTP ' + response.status);
         return response.json();
       })
       .then(function (data) {
         if (!data || !Array.isArray(data.reports)) throw new Error('Unexpected response');
-        if (generation !== null && data.generation !== generation) {
-          // The history was cleared elsewhere: start over from the server's current state.
+        if ((generation !== null && data.generation !== generation) || (epoch !== null && data.epoch !== epoch)) {
+          // The history was cleared elsewhere, or the dev server restarted and counts from zero
+          // again: start over from the server's current state.
+          epoch = data.epoch;
           generation = data.generation;
           reports = [];
           latest = 0;
           render();
           return poll();
         }
+        epoch = data.epoch;
         generation = data.generation;
         if (data.reports.length > 0) {
           reports = reports.concat(data.reports);
@@ -265,7 +276,14 @@ export const ASSET_JS = `(function () {
         setStatus(reports.length + (reports.length === 1 ? ' report' : ' reports'), false);
         return undefined;
       })
-      .catch(function () { setStatus('Cannot reach the dev server', true); });
+      .catch(function () {
+        setStatus(
+          blocked
+            ? 'The dev endpoint refused this address. Open the app through localhost or an IP address, or add the host name to devServer.host or vite.server.allowedHosts.'
+            : 'Cannot reach the dev server',
+          true
+        );
+      });
   }
 
   clearButton.addEventListener('click', function () {

@@ -51,8 +51,41 @@ describe('parseHydrationWarning', () => {
   });
 
   it.each([
+    [
+      'class',
+      'Hydration class mismatch on<div class="a">x</div>\n  - rendered on server: class="a"\n  - expected on client: class="b"\n  Note: this mismatch is check-only. The DOM will not be rectified in production due to performance overhead.\n  You should fix the source of the mismatch.',
+      'class-mismatch',
+      'class="a"',
+      'class="b"',
+    ],
+    [
+      'style',
+      'Hydration style mismatch on<div style="color:red">x</div>\n  - rendered on server: style="color:red"\n  - expected on client: style="color:blue;"\n  Note: this mismatch is check-only.',
+      'style-mismatch',
+      'style="color:red"',
+      'style="color:blue;"',
+    ],
+    [
+      'attribute',
+      'Hydration attribute mismatch on<div title="one">x</div>\n  - rendered on server: title="one"\n  - expected on client: title="two"\n  Note: this mismatch is check-only.',
+      'attribute-mismatch',
+      'title="one"',
+      'title="two"',
+    ],
+  ])(
+    'recognises a %s mismatch (Vue 3.5 wording) and drops the trailing note',
+    (_n, message, kind, server, client) => {
+      expect(parseHydrationWarning(message)).toEqual({
+        kind,
+        serverText: server,
+        clientText: client,
+      });
+    },
+  );
+
+  it.each([
     'Hydration completed but contains mismatches.',
-    'Hydration attribute mismatch on <div>',
+    'Hydration completed but contains mismatches (summary, not a mismatch itself).',
     'Property "x" was accessed during render but is not defined',
     '',
   ])('returns null for %j', (message) => {

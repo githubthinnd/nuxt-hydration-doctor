@@ -34,7 +34,9 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run verify:package
+      - run: npm run verify:dist
       - run: npm run verify:production
+      - run: npm run verify:nuxt-types
       - name: Audit shipped dependencies (must be clean)
         run: npm audit --omit=dev --audit-level=low
       - name: Audit development dependencies (reported, not blocking)

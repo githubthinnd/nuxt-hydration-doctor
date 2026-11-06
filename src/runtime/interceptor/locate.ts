@@ -1,3 +1,4 @@
+import { splitAttribute } from '../domain/warning-text';
 import type { ParsedHydrationWarning } from './parse-warning';
 
 const ELEMENT_NODE = 1;
@@ -40,14 +41,17 @@ function ownText(element: Element): string {
  * - children mismatch (or no match): the closest stamped element of the root.
  */
 export function pickOffendingElement(
-  root: Element,
+  roots: readonly Element[],
   attribute: string,
   warning: ParsedHydrationWarning,
 ): Element | null {
-  const fallback = closestStamped(root, attribute);
-  const candidates = [root, ...Array.from(root.querySelectorAll(`[${attribute}]`))].filter(
-    (candidate) => candidate.hasAttribute(attribute),
-  );
+  const first = roots[0] ?? null;
+  const fallback = closestStamped(first, attribute);
+  const candidates = [
+    ...new Set(
+      roots.flatMap((root) => [root, ...Array.from(root.querySelectorAll(`[${attribute}]`))]),
+    ),
+  ].filter((candidate) => candidate.hasAttribute(attribute));
 
   if (warning.kind === 'text-mismatch' && warning.clientText !== null) {
     const expected = warning.clientText.replace(/\s+/g, ' ').trim();
@@ -59,7 +63,29 @@ export function pickOffendingElement(
     const match = candidates.find((candidate) => candidate.localName === expectedTag);
     if (match !== undefined) return match;
   }
+  if (
+    (warning.kind === 'class-mismatch' ||
+      warning.kind === 'style-mismatch' ||
+      warning.kind === 'attribute-mismatch') &&
+    warning.serverText !== null
+  ) {
+    // Vue only checks these: the DOM still holds the server's value, so that is what to look for.
+    const rendered = splitAttribute(warning.serverText);
+    if (rendered !== null) {
+      const wanted = normaliseAttribute(rendered.value);
+      const match = candidates.find(
+        (candidate) =>
+          normaliseAttribute(candidate.getAttribute(rendered.name) ?? '\u0000') === wanted,
+      );
+      if (match !== undefined) return match;
+    }
+  }
   return fallback;
+}
+
+/** Whitespace and a trailing semicolon do not make two class or style values different. */
+function normaliseAttribute(value: string): string {
+  return value.replace(/\s+/g, ' ').trim().replace(/;$/, '');
 }
 
 /**

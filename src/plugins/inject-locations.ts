@@ -13,6 +13,21 @@ const ELEMENT_TYPE_PLAIN = 0;
  */
 const SKIPPED_TAGS: ReadonlySet<string> = new Set(['template', 'slot']);
 
+/**
+ * Makes `value` safe inside a double-quoted HTML attribute. A file name may legally contain `"`,
+ * `&`, `<` or `>` (on POSIX, even a layer's `a"b.vue`); written as it is, the quote would end the
+ * attribute early and the rest of the name would become attributes of the element (or break the
+ * template). Vue decodes the entities when it compiles the template, so the DOM attribute ends up
+ * holding the original text.
+ */
+export function escapeAttributeValue(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+}
+
 export interface InjectLocationsOptions {
   /** Attribute written into each tag, e.g. `data-nhd-loc`. */
   readonly attribute: string;
@@ -75,7 +90,7 @@ export function injectLocations(
           // `+ 1` skips the opening "<"; the tag name follows immediately.
           const insertAt = offset + 1 + node.tag.length;
           const location = `${options.file}:${String(line)}:${String(column)}`;
-          magic.appendLeft(insertAt, ` ${options.attribute}="${location}"`);
+          magic.appendLeft(insertAt, ` ${options.attribute}="${escapeAttributeValue(location)}"`);
           injected += 1;
         }
       }

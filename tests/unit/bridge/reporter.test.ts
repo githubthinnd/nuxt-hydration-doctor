@@ -54,23 +54,62 @@ describe('createReporter', () => {
     expect(parsed.diagnostics).toHaveLength(1);
   });
 
-  it('drops the markup, not the report, when it would be too large', () => {
+  it('cuts over-long fields to what the server accepts instead of losing the report', () => {
     const { report, sent } = setup();
-    // Each side alone is under the limit; together they are over it.
-    report(entry({ serverHtml: 'x'.repeat(150_000), clientHtml: 'y'.repeat(150_000) }));
+    report(
+      entry({
+        message: 'm'.repeat(50_000),
+        route: `/${'r'.repeat(5000)}`,
+        serverHtml: 'x'.repeat(150_000),
+        clientHtml: 'y'.repeat(150_000),
+        ancestry: Array.from({ length: 200 }, (_, i) => `tag${String(i)}`),
+        breadcrumbs: [`route /cb?${'q'.repeat(600)}`, 'during initial hydration'],
+      }),
+    );
+
+    const body = required(sent[0]).request.body;
+    const parsed = required(parseHydrationReport(JSON.parse(body) as unknown));
+    expect(parsed.issue.message).toHaveLength(5000);
+    expect(parsed.issue.serverHtml).toHaveLength(25_000);
+    expect(parsed.issue.ancestry).toHaveLength(64);
+    // The nearest ancestors are the ones that matter, so the end of the list survives.
+    expect(parsed.issue.ancestry.at(-1)).toBe('tag199');
+    expect(parsed.issue.breadcrumbs[0]).toHaveLength(300);
+    expect(parsed.issue.breadcrumbs[1]).toBe('during initial hydration');
+  });
+
+  it('drops the markup, not the report, when multi-byte text would still be too large', () => {
+    const { report, sent } = setup();
+    // Under the character limits, but 3 bytes per character: the whole is over the byte limit.
+    const wide = '€'.repeat(12_000);
+    report({
+      issue: makeIssue({ serverHtml: '€'.repeat(25_000), clientHtml: '€'.repeat(25_000) }),
+      diagnostics: Array.from({ length: 4 }, () =>
+        makeDiagnosis({ explanation: wide.slice(0, 2000), evidence: [wide.slice(0, 600)] }),
+      ),
+    });
+    // Sanity: with the markup this would not fit.
+    expect(new TextEncoder().encode('€'.repeat(50_000)).length).toBeGreaterThan(
+      MAX_REPORT_BYTES / 2,
+    );
 
     const body = required(sent[0]).request.body;
     expect(new TextEncoder().encode(body).length).toBeLessThanOrEqual(MAX_REPORT_BYTES);
-    const issue = required(parseHydrationReport(JSON.parse(body) as unknown)).issue;
-    expect(issue.serverHtml).toBeNull();
-    expect(issue.clientHtml).toBeNull();
-    expect(issue.message).toBe(entry().issue.message);
+    expect(required(parseHydrationReport(JSON.parse(body) as unknown)).diagnostics).toHaveLength(4);
   });
 
-  it('sends nothing when even the trimmed report is too large', () => {
+  it('sends nothing, and does not throw, when even the trimmed report cannot fit', () => {
     const { report, sent } = setup();
-    // The message alone is over the limit, so dropping the markup cannot help.
-    report(entry({ message: 'm'.repeat(MAX_REPORT_BYTES + 1) }));
+    // Eight diagnoses at the field limits, in 3-byte characters, exceed the byte limit alone.
+    const diagnosis = makeDiagnosis({
+      title: '€'.repeat(300),
+      explanation: '€'.repeat(2000),
+      evidence: Array.from({ length: 12 }, () => '€'.repeat(600)),
+      fix: { language: 'ts', description: '€'.repeat(600), code: '€'.repeat(8000) },
+    });
+    expect(() => {
+      report({ issue: makeIssue(), diagnostics: Array.from({ length: 8 }, () => diagnosis) });
+    }).not.toThrow();
     expect(sent).toHaveLength(0);
   });
 

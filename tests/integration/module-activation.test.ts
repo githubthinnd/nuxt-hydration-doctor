@@ -13,6 +13,7 @@ interface Observed {
   readonly publicConfig: unknown;
   readonly vitePluginNames: readonly string[];
   readonly devHandlerRoutes: readonly string[];
+  readonly typeTemplates: readonly string[];
   readonly tabs: readonly { name: string; view: unknown }[];
 }
 
@@ -51,6 +52,11 @@ async function observe({ dev, hydrationDoctor, devtools }: Scenario): Promise<Ob
       publicConfig: nuxt.options.runtimeConfig.public['hydrationDoctor'],
       vitePluginNames: config.plugins.map((p) => p.name ?? ''),
       devHandlerRoutes: nuxt.options.devServerHandlers.flatMap((h) => h.route ?? []),
+      typeTemplates: nuxt.options.build.templates.flatMap((t) =>
+        typeof t === 'object' && 'filename' in t && typeof t.filename === 'string'
+          ? [t.filename]
+          : [],
+      ),
       tabs,
     };
   } finally {
@@ -75,6 +81,20 @@ describe('module activation (real Nuxt)', () => {
       src: `${DEVTOOLS_BASE_PATH}/`,
     });
   }, 60_000);
+
+  it('declares $hydrationDoctor for TypeScript when inactive, and leaves it to Nuxt when active', async () => {
+    // Inactive (`nuxt prepare`, a production build, `enabled: false`): only a type declaration is
+    // written (a .d.ts, nothing in any bundle) so editors still know the property, as optional.
+    for (const scenario of [{ dev: false }, { dev: true, hydrationDoctor: { enabled: false } }]) {
+      const seen = await observe(scenario);
+      expect(seen.typeTemplates).toContain('types/nuxt-hydration-doctor.d.ts');
+    }
+    // Active: Nuxt infers the property from the plugin, and a second declaration of it would only
+    // conflict. (That inference gives the right type is checked by `npm run verify:nuxt-types`.)
+    const active = await observe({ dev: true });
+    expect(active.typeTemplates).not.toContain('types/nuxt-hydration-doctor.d.ts');
+    expect(hasPlugin(active)).toBe(true);
+  }, 120_000);
 
   it('registers nothing in a production build', async () => {
     const seen = await observe({ dev: false });

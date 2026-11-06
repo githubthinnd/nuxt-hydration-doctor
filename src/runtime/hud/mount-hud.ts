@@ -1,7 +1,7 @@
 import { createApp, h, shallowReactive, type Component } from 'vue';
 import type { HydrationDoctorApi } from '../domain/api';
 import type { HudEntry, OverlayBox } from '../domain/hud';
-import type { HydrationIssue } from '../domain/issue';
+import type { HydrationIssue, SourceLocation } from '../domain/issue';
 import { createOverlayTracker, type OverlayView } from './overlay';
 
 export const HUD_HOST_ID = 'nuxt-hydration-doctor-hud';
@@ -18,6 +18,11 @@ export interface HudDeps {
   /** Builds the HUD's view of an issue (including its diff). */
   readonly toEntry: (issue: HydrationIssue) => HudEntry;
   readonly copyText: (text: string) => void;
+  /**
+   * Opens a source location in the editor. Absent when that is not possible (the dev endpoint it
+   * goes through is off), in which case the HUD does not offer the button.
+   */
+  readonly openInEditor?: (location: SourceLocation) => void;
   readonly observeResize?: (element: Element, callback: () => void) => () => void;
   /** Receives the module's own failures; must never throw. */
   readonly reportInternal: (message: string, error: unknown) => void;
@@ -101,6 +106,7 @@ export function mountHud(deps: HudDeps): HudHandle {
         overlays: state.overlays,
         selectedId: state.selectedId,
         open: state.open,
+        canOpen: deps.openInEditor !== undefined,
         onSelect: (id: string) => {
           state.selectedId = id;
           state.open = true;
@@ -119,6 +125,9 @@ export function mountHud(deps: HudDeps): HudHandle {
         },
         onCopy: (text: string) => {
           deps.copyText(text);
+        },
+        onOpen: (location: SourceLocation) => {
+          deps.openInEditor?.(location);
         },
       }),
   });

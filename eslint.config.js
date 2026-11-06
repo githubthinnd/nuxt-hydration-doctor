@@ -47,7 +47,13 @@ export default tseslint.config(
   {
     languageOptions: {
       parserOptions: {
-        projectService: { allowDefaultProject: ['vitest.config.ts', 'playwright.config.ts'] },
+        projectService: {
+          allowDefaultProject: [
+            'vitest.config.ts',
+            'vitest.dist.config.ts',
+            'playwright.config.ts',
+          ],
+        },
         tsconfigRootDir: import.meta.dirname,
       },
     },

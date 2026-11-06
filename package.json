@@ -64,7 +64,9 @@
     "arch": "depcruise src --config .dependency-cruiser.cjs",
     "verify:package": "node scripts/verify-types.mjs && publint",
     "verify:production": "node scripts/verify-production.mjs",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run arch && npm run test && npm run build && npm run verify:package && npm run verify:production",
+    "verify:nuxt-types": "node scripts/verify-nuxt-types.mjs",
+    "verify:dist": "vitest run --configLoader runner --config vitest.dist.config.ts",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run arch && npm run test && npm run build && npm run verify:package && npm run verify:dist && npm run verify:production && npm run verify:nuxt-types",
     "prepublishOnly": "npm run check"
   },
   "dependencies": {
@@ -82,7 +84,6 @@
     "@eslint/js": "^10.0.1",
     "@nuxt/module-builder": "^1.0.3",
     "@nuxt/schema": "^4.6.4",
-    "@nuxt/test-utils": "^4.3.4",
     "@playwright/test": "^1.65.0",
     "@types/node": "^22.20.5",
     "@vitejs/plugin-vue": "^6.0.10",

@@ -177,7 +177,7 @@ describe('hydration capture (real Vue hydration)', () => {
     expect(interceptor.api.issues()).toHaveLength(1);
   });
 
-  it('survives a capture that fails without losing the other issues', () => {
+  it('keeps an issue, without a location, when its component instance throws while being read', () => {
     const interceptor = createInterceptor({
       document,
       attribute: ATTR,
@@ -210,6 +210,9 @@ describe('hydration capture (real Vue hydration)', () => {
     );
     interceptor.markMounted();
 
-    expect(interceptor.api.issues()).toHaveLength(1);
+    const issues = interceptor.api.issues();
+    expect(issues.map((issue) => issue.kind)).toEqual(['node-mismatch', 'children-mismatch']);
+    expect(issues[0]?.location).toBeNull();
+    expect(issues[0]?.clientHtml).toBeNull();
   });
 });

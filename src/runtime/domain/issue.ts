@@ -5,8 +5,17 @@ export interface SourceLocation {
   readonly column: number;
 }
 
-/** Vue hydration warnings the interceptor recognises (Phase 3). */
-export type HydrationMismatchKind = 'children-mismatch' | 'node-mismatch' | 'text-mismatch';
+/** The hydration warnings the interceptor recognises. */
+export const MISMATCH_KINDS = [
+  'text-mismatch',
+  'node-mismatch',
+  'children-mismatch',
+  'class-mismatch',
+  'style-mismatch',
+  'attribute-mismatch',
+] as const;
+
+export type HydrationMismatchKind = (typeof MISMATCH_KINDS)[number];
 
 export interface HydrationMetrics {
   /** Epoch milliseconds at which the warning was captured. */

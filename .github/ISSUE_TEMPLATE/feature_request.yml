@@ -1,0 +1,18 @@
+name: Feature request
+description: Suggest a new kind of mismatch to recognise, a diagnosis, or another improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: For a new diagnosis, describe the mismatch you hit and what finally turned out to be its cause.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to see?
+      description: Note that nothing of this module may reach a production build, and that a diagnosis should rest on evidence it can observe rather than on a guess.
+    validations:
+      required: true

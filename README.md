@@ -37,6 +37,38 @@ export default defineNuxtConfig({
 
 Unknown or mistyped options fail the build with the offending option path. Supports Nuxt `^3.15` and `^4`.
 
+## What it recognises
+
+Vue's text, node, children, class, style and attribute hydration warnings. For each mismatch you get the component and the source line, the server markup against the client DOM, and, when the evidence supports one, a likely cause with a fix you can paste:
+
+| Cause                      | What gives it away                                                                                                                                                    |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Browser-only value         | the client text contains the live value of `window.innerWidth`, `navigator.userAgent`, a `localStorage` entry…; `window`/`document` read in `setup`                   |
+| Non-deterministic value    | timestamps seconds apart, a whole-hour difference (time zone), 12h against 24h (locale), different UUIDs or random decimals; `Date.now()`, `Math.random()` in `setup` |
+| Invalid HTML nesting       | `<div>` in `<p>`, `<tr>` outside `<tbody>`, `<a>` in `<a>`… (the browser's parser repairs the server HTML, Vue does not repair its own DOM)                           |
+| State changed before mount | a `useState` or Pinia value differs from what the server serialised                                                                                                   |
+
+A diagnosis states the evidence it rests on and a confidence; when nothing matches, it says so instead of guessing.
+
+## Verified against
+
+| Nuxt                  | Checked                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------ |
+| 4.6.4 (DevTools 3.4)  | the whole suite, a production build, the built `dist/` in a separate project         |
+| 3.21.11               | the built `dist/` in a separate project: registers in development, nothing otherwise |
+| 3.15.0 (DevTools 1.7) | the same                                                                             |
+
+"Checked" means loaded in a real Nuxt and inspected for what it registers, plus the test suites below. What has not been run is a browser against the dev server (see the roadmap note).
+
+## Known limits
+
+- Only single-file components are located: render functions, JSX/TSX and Pug (`lang` other than `html`) templates get no `data-nhd-loc`, so a mismatch in them is reported without a source line. A PascalCase native tag such as `<DIV>` is treated as a component by Vue and is skipped too.
+- The server markup is captured from the application root and the teleport container before hydration. A mismatch outside both has no server side to compare.
+- Vue only _checks_ class, style and attribute mismatches and does not repair them, so for those the "client" markup still holds the server's value; the exact values are in the message.
+- A report needs the dev endpoint (`/__nhd`), which Nuxt mounts at the server root. It answers loopback names and IP addresses; reaching the dev server through another host name needs that name in `devServer.host` or `vite.server.allowedHosts`.
+- "Open in editor" works for files of the project and of its Nuxt layers, through Nuxt's own `/__open-in-editor` route, and not for anything else.
+- Heuristics can be wrong. A diagnosis below 55% confidence is labelled low; below 30% it is not shown.
+
 ## Roadmap
 
 | Phase | Scope                                                               | Status |

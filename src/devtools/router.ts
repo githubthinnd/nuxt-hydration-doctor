@@ -1,5 +1,7 @@
 import { resolve, sep } from 'node:path';
+import { DEVTOOLS_CLIENT_HEADER } from '../runtime/domain/constants';
 import { parseHydrationReport } from '../runtime/domain/report';
+import { isHostAllowed, isOriginAllowed, LOOPBACK_ONLY, type AllowedHosts } from './host';
 import { ASSET_CSS, ASSET_HTML, ASSET_JS, DEVTOOLS_BASE } from './page';
 import type { ReportRegistry, StoredReport } from './registry';
 
@@ -28,12 +30,19 @@ export interface DevtoolsResponse {
 
 export interface RouterDeps {
   readonly registry: ReportRegistry;
-  /** Project root: the only place "Open in Editor" may point into. */
+  /** Project root: reported paths are relative to it. */
   readonly rootDir: string;
+  /**
+   * Directories "Open in Editor" may point into. Defaults to the project root; Nuxt layers add
+   * theirs, since a file of a layer is stamped with a path like `../base/components/A.vue`.
+   */
+  readonly allowedRoots?: readonly string[];
+  /** Host names the endpoint answers to besides loopback names and IP addresses. */
+  readonly allowedHosts?: AllowedHosts;
 }
 
 /** The marker header the dev endpoint requires on anything that is not a plain page load. */
-export const CLIENT_HEADER = 'x-nhd-client';
+export { DEVTOOLS_CLIENT_HEADER as CLIENT_HEADER } from '../runtime/domain/constants';
 
 const COMMON_HEADERS = {
   'cache-control': 'no-store',
@@ -71,13 +80,19 @@ function asset(
 
 /**
  * Absolute path of a reported file for the editor, or null when it would leave the project.
- * Reported paths come from the browser, so they are resolved and confined to `rootDir`: the
- * response never names a file outside the project, whatever the report claimed.
+ * Reported paths come from the browser, so they are resolved against `rootDir` and confined to it
+ * and to `extraRoots` (the directories of Nuxt layers): the response never names a file anywhere
+ * else, whatever the report claimed. Symbolic links are not followed.
  */
-export function resolveEditorFile(rootDir: string, file: string): string | null {
-  const root = resolve(rootDir);
-  const absolute = resolve(root, file);
-  return absolute.startsWith(root + sep) ? absolute : null;
+export function resolveEditorFile(
+  rootDir: string,
+  file: string,
+  extraRoots: readonly string[] = [],
+): string | null {
+  const base = resolve(rootDir);
+  const absolute = resolve(base, file);
+  const roots = [base, ...extraRoots.map((root) => resolve(root))];
+  return roots.some((root) => absolute.startsWith(root + sep)) ? absolute : null;
 }
 
 function isSameSite(request: DevtoolsRequest): boolean {
@@ -87,15 +102,25 @@ function isSameSite(request: DevtoolsRequest): boolean {
 }
 
 function withEditorFile(
-  rootDir: string,
+  deps: RouterDeps,
   report: StoredReport,
 ): StoredReport & { editorFile: string | null } {
   const { location } = report.issue;
   return {
     ...report,
-    editorFile: location === null ? null : resolveEditorFile(rootDir, location.file),
+    editorFile:
+      location === null ? null : resolveEditorFile(deps.rootDir, location.file, deps.allowedRoots),
   };
 }
+
+/** A positive integer from a query value, or `fallback`. */
+function positiveInt(value: string | undefined, fallback: number): number {
+  const n = Number(value);
+  return Number.isSafeInteger(n) && n >= 1 ? n : fallback;
+}
+
+const HOST_REFUSED =
+  'Host not allowed. Reach the dev server through localhost or an IP address, or add the host name to devServer.host or vite.server.allowedHosts.';
 
 /**
  * The whole dev API as a pure function from request to response, so it can be tested without a
@@ -103,10 +128,12 @@ function withEditorFile(
  *
  *   GET    /            the DevTools tab page          GET /app.js, /style.css   its assets
  *   GET    /issues      reports since `?since=<seq>`   POST   /issues            a new report
- *   DELETE /issues      forget the history
+ *   DELETE /issues      forget the history             GET    /open?file&line&column
+ *                                                      redirect to Nuxt's open-in-editor
  *
  * Defences, because this endpoint is reachable by anything that can reach the dev server:
- * cross-site requests are refused; writes also need the `x-nhd-client` header, which a cross-origin
+ * requests whose `Host` is a foreign domain name are refused (DNS rebinding), as are cross-site
+ * and cross-origin ones; writes also need the `x-nhd-client` header, which a cross-origin
  * page cannot add without a preflight that this server never answers; bodies are size-capped by
  * the transport and strictly validated here; the page is served with a strict CSP.
  */
@@ -115,22 +142,51 @@ export function handleDevtoolsRequest(
   deps: RouterDeps,
 ): DevtoolsResponse {
   const { method, path } = request;
-  const known = ['/', '/app.js', '/style.css', '/issues'].includes(path);
+  const known = ['/', '/app.js', '/style.css', '/issues', '/open'].includes(path);
   if (!known) return respond(404, 'Not found', { 'content-type': 'text/plain; charset=utf-8' });
-  if (!isSameSite(request)) return respond(403, 'Cross-site requests are not allowed');
+  // Name checks first: a rebound domain looks same-origin to the browser, so only `Host` gives it
+  // away (see host.ts). Then the cross-site and cross-origin checks.
+  if (!isHostAllowed(request.headers['host'], deps.allowedHosts ?? LOOPBACK_ONLY)) {
+    return respond(403, HOST_REFUSED);
+  }
+  if (
+    !isSameSite(request) ||
+    !isOriginAllowed(request.headers['origin'], request.headers['host'])
+  ) {
+    return respond(403, 'Cross-site requests are not allowed');
+  }
+
+  if (path === '/open') {
+    if (method !== 'GET') return respond(405, 'Method not allowed', { allow: 'GET' });
+    // Opening an editor is a side effect, so it needs the marker header like any write.
+    if (request.headers[DEVTOOLS_CLIENT_HEADER] !== '1')
+      return respond(403, 'Missing client header');
+    const file = request.query['file'];
+    const absolute =
+      file === undefined || file === '' || file.length > 500
+        ? null
+        : resolveEditorFile(deps.rootDir, file, deps.allowedRoots);
+    if (absolute === null) return respond(400, 'The file is not inside the project');
+    const line = positiveInt(request.query['line'], 1);
+    const column = positiveInt(request.query['column'], 1);
+    const target = `/__open-in-editor?file=${encodeURIComponent(`${absolute}:${String(line)}:${String(column)}`)}`;
+    return respond(302, '', { location: target });
+  }
 
   if (path === '/issues') {
     if (method === 'GET') {
       const since = Number(request.query['since'] ?? 0);
       const after = Number.isSafeInteger(since) && since >= 0 ? since : 0;
       return json(200, {
+        epoch: deps.registry.epoch(),
         generation: deps.registry.generation(),
         latest: deps.registry.latest(),
-        reports: deps.registry.since(after).map((report) => withEditorFile(deps.rootDir, report)),
+        reports: deps.registry.since(after).map((report) => withEditorFile(deps, report)),
       });
     }
     if (method === 'POST' || method === 'DELETE') {
-      if (request.headers[CLIENT_HEADER] !== '1') return respond(403, 'Missing client header');
+      if (request.headers[DEVTOOLS_CLIENT_HEADER] !== '1')
+        return respond(403, 'Missing client header');
       if (method === 'DELETE') {
         deps.registry.clear();
         return json(200, { ok: true });

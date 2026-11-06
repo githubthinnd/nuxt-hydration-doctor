@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseHydrationReport } from '../../../src/runtime/domain/report';
+import { fitReport, parseHydrationReport } from '../../../src/runtime/domain/report';
+import { makeIssue } from '../../support/issue';
 import { makeDiagnosis, makeReport } from '../../support/report';
 import { required } from '../../support/required';
 
@@ -77,7 +78,7 @@ describe('parseHydrationReport', () => {
   });
 
   it.each([
-    ['an unknown kind', { kind: 'attribute-mismatch' }],
+    ['an unknown kind', { kind: 'cosmic-ray-mismatch' }],
     ['a non-string message', { message: 5 }],
     ['an over-long message', { message: 'x'.repeat(5001) }],
     ['over-long markup', { clientHtml: 'x'.repeat(25_001) }],
@@ -110,5 +111,68 @@ describe('parseHydrationReport', () => {
     const body = plain();
     body['diagnostics'] = [{ ...makeDiagnosis(), fix: null }];
     expect(required(parseHydrationReport(body)).diagnostics[0]?.fix).toBeNull();
+  });
+});
+
+describe('fitReport', () => {
+  it('leaves a report that already fits exactly as it was', () => {
+    const report = makeReport();
+    expect(fitReport(report)).toEqual(report);
+  });
+
+  it.each([
+    ['a long URL in the first breadcrumb', { breadcrumbs: [`route /cb?${'q'.repeat(400)}`] }],
+    ['more than 64 ancestors', { ancestry: Array.from({ length: 80 }, (_, i) => `t${String(i)}`) }],
+    ['a very long message', { message: 'm'.repeat(30_000) }],
+    ['a very long route', { route: `/${'r'.repeat(4000)}` }],
+    ['over-long markup', { serverHtml: 'x'.repeat(60_000), clientHtml: 'y'.repeat(60_000) }],
+    ['a long component name', { componentName: 'C'.repeat(500) }],
+    ['a long file name', { location: { file: `${'d/'.repeat(400)}x.vue`, line: 1, column: 1 } }],
+    ['too many breadcrumbs', { breadcrumbs: Array.from({ length: 100 }, () => 'step') }],
+  ])('makes a report with %s acceptable to the server', (_label, change) => {
+    const report = makeReport({ issue: makeIssue(change) });
+    // The server refuses it as it is...
+    expect(parseHydrationReport(JSON.parse(JSON.stringify(report)) as unknown)).toBeNull();
+    // ...and accepts it once fitted.
+    expect(
+      parseHydrationReport(JSON.parse(JSON.stringify(fitReport(report))) as unknown),
+    ).not.toBeNull();
+  });
+
+  it('makes over-long diagnoses acceptable too', () => {
+    const report = makeReport({
+      diagnostics: Array.from({ length: 12 }, () =>
+        makeDiagnosis({
+          title: 't'.repeat(900),
+          explanation: 'e'.repeat(9000),
+          evidence: Array.from({ length: 30 }, () => 'v'.repeat(2000)),
+          fix: { language: 'ts', description: 'd'.repeat(2000), code: 'c'.repeat(30_000) },
+        }),
+      ),
+    });
+    expect(parseHydrationReport(JSON.parse(JSON.stringify(report)) as unknown)).toBeNull();
+    const fitted = fitReport(report);
+    expect(fitted.diagnostics).toHaveLength(8);
+    expect(parseHydrationReport(JSON.parse(JSON.stringify(fitted)) as unknown)).not.toBeNull();
+  });
+
+  it('keeps the nearest ancestors and the first breadcrumbs when it has to drop some', () => {
+    const fitted = fitReport(
+      makeReport({
+        issue: makeIssue({
+          ancestry: Array.from({ length: 80 }, (_, i) => `t${String(i)}`),
+          breadcrumbs: Array.from({ length: 80 }, (_, i) => `b${String(i)}`),
+        }),
+      }),
+    ).issue;
+    expect(fitted.ancestry[0]).toBe('t16');
+    expect(fitted.ancestry.at(-1)).toBe('t79');
+    expect(fitted.breadcrumbs[0]).toBe('b0');
+    expect(fitted.breadcrumbs.at(-1)).toBe('b63');
+  });
+
+  it('is idempotent', () => {
+    const once = fitReport(makeReport({ issue: makeIssue({ message: 'm'.repeat(30_000) }) }));
+    expect(fitReport(once)).toEqual(once);
   });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { injectLocations } from '../../../src/plugins/inject-locations';
+import { parse } from '@vue/compiler-sfc';
+import { escapeAttributeValue, injectLocations } from '../../../src/plugins/inject-locations';
 
 const ATTR = 'data-nhd-loc';
 const options = { attribute: ATTR, file: 'components/Header.vue' };
@@ -123,5 +124,44 @@ describe('injectLocations', () => {
     const result = injectLocations('<template><div /></template>', options);
     expect(result?.map.sources).toEqual(['components/Header.vue']);
     expect(result?.map.mappings).not.toBe('');
+  });
+
+  describe('file names that are not plain text', () => {
+    interface ParsedProp {
+      name: string;
+      value?: { content: string };
+    }
+    const propsOfFirstElement = (code: string): ParsedProp[] => {
+      const { descriptor, errors } = parse(code);
+      expect(errors).toEqual([]);
+      const children = descriptor.template?.ast?.children as unknown as { props: ParsedProp[] }[];
+      return children[0]?.props ?? [];
+    };
+
+    it('escapes quotes, ampersands and angle brackets', () => {
+      expect(escapeAttributeValue('a"b&c<d>e')).toBe('a&quot;b&amp;c&lt;d&gt;e');
+      expect(escapeAttributeValue('plain/path.vue:1:2')).toBe('plain/path.vue:1:2');
+    });
+
+    it('cannot be used to add attributes to the element', () => {
+      const evil = 'a" onmouseover="alert(1)" x="<b>&.vue';
+      const code = run2('<template><div /></template>', evil);
+      const props = propsOfFirstElement(code);
+      // Unescaped, `onmouseover` and `x` would have been parsed as attributes of the <div>.
+      expect(props.map((prop) => prop.name)).toEqual([ATTR]);
+      expect(code).not.toContain('onmouseover="alert');
+    });
+
+    it('is decoded back to the original name by the template parser', () => {
+      const name = 'layers/a"b&c.vue';
+      const props = propsOfFirstElement(run2('<template><div /></template>', name));
+      expect(props[0]?.value?.content).toBe(`${name}:1:11`);
+    });
+
+    function run2(source: string, file: string): string {
+      const result = injectLocations(source, { attribute: ATTR, file });
+      if (result === null) throw new Error('expected a transform result');
+      return result.code;
+    }
   });
 });

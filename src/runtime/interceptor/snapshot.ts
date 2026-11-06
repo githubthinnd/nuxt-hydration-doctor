@@ -8,22 +8,28 @@ export interface ServerSnapshot {
 }
 
 /**
- * Captures `rootSelector`'s inner HTML. Must run before hydration starts: once Vue patches a
- * mismatched node the original server markup is gone, which is the whole reason this exists.
+ * Captures the inner HTML of the elements `rootSelectors` match (the application root, and the
+ * place `<Teleport>` content is rendered to), in document order so that "the n-th element with
+ * this location" means the same thing in the snapshot and in the live page. Must run before
+ * hydration starts: once Vue patches a mismatched node the original server markup is gone, which
+ * is the whole reason this exists.
  *
  * The markup is parsed lazily, and only when an issue needs it, into an inert `<template>`
  * fragment: scripts do not run and images do not load, so inspecting it has no side effects.
- * Returns null when the root is missing or the page is larger than `maxChars` (a dev-time guard
+ * Returns null when no root is found or the page is larger than `maxChars` (a dev-time guard
  * against copying a huge document).
  */
 export function captureServerSnapshot(
   doc: Document,
-  rootSelector: string,
+  rootSelectors: string | readonly string[],
   maxChars: number,
 ): ServerSnapshot | null {
-  const root = doc.querySelector(rootSelector);
-  if (root === null) return null;
-  const html = root.innerHTML;
+  const selectors = typeof rootSelectors === 'string' ? [rootSelectors] : rootSelectors;
+  const roots = [
+    ...new Set(selectors.flatMap((selector) => Array.from(doc.querySelectorAll(selector)))),
+  ].sort((a, b) => (a.compareDocumentPosition(b) & 4 /* b follows a */ ? -1 : 1));
+  if (roots.length === 0) return null;
+  const html = roots.map((root) => root.innerHTML).join('');
   if (html.length > maxChars) return null;
 
   let content: DocumentFragment | null = null;

@@ -4,6 +4,36 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ## [Unreleased]
 
+### Review pass (after Phase 6)
+
+An independent review plus a verification of everything that had only been assumed. Each fix below has a test that fails without it.
+
+**Fixed**
+
+- The DevTools tab broke (`Cannot reach the dev server`) when a report's page load id was `__proto__`, `constructor`, `toString`… (grouping used a plain object): it now uses a `Map`.
+- A report could be refused by the server for ordinary reasons (a URL with a long query string, an element with more than 64 ancestors, a long text mismatch), so the issue never reached the tab. The reporter now trims every field to the limits the server enforces (`fitReport`, one shared limits table).
+- DNS rebinding and exposed dev servers: the endpoint now refuses `Host` headers that are foreign domain names, and cross-origin `Origin`s. IP addresses and loopback names keep working; other names come from `devServer.host` / `vite.server.allowedHosts`.
+- The request body was buffered whole when a request had no `Content-Length`: it is now read as a counted stream and refused at 256 KB.
+- A tab left open across a dev-server restart never showed new reports (sequence numbers restart); the registry now has an epoch.
+- A component with several root elements (a fragment) was reported as its caller's element, file and markup; its own roots are now found through the vnode tree.
+- Another plugin assigning `app.config.warnHandler` after the doctor silently switched capturing off: `warnHandler` is now an accessor that chains the later handler after ours.
+- `$hydrationDoctor` was typed `{}`/`unknown` in a Nuxt project: Nuxt infers it from the plugin, whose annotation had erased the type. The plugin is now typed precisely and a fallback declaration (optional) is written only when the module is inactive.
+- The injected attribute value was not escaped: a file name containing `"` could add attributes to a template. It is escaped now.
+- Quadratic time in two regular expressions applied to page content (about 1.6 s for a message of 60 000 newlines): replaced by a linear scan and by collapsing whitespace first.
+- The server snapshot ignored teleported content: the teleport container is now included.
+
+**Added**
+
+- Class, style and attribute hydration mismatches (Vue 3.5 wording), including diagnosis from their values.
+- "Open in editor" in the HUD, and for files of Nuxt layers (`GET /__nhd/open`).
+- `npm run verify:dist` (smoke tests of the built package: module entry, engine, codec, interceptor on a real hydration, the HUD component as shipped) and `npm run verify:nuxt-types` (type-checks `$hydrationDoctor` in a Nuxt project in both modes), both in `check` and CI.
+- Verified by loading the built `dist/` in separate projects: Nuxt 4.6.4, 3.21.11 and 3.15.0.
+- `CODE_OF_CONDUCT.md` and issue templates.
+
+**Changed**
+
+- Removed the unused `@nuxt/test-utils` dependency.
+
 ### Added (Phase 6)
 
 - **Nuxt DevTools tab** "Hydration Doctor" (`src/devtools/`): a session history of captured mismatches with breadcrumbs, timings (ms after navigation start, time received), the diagnosis and fix, the server/client markup, and **Open in Editor** links through Nuxt's own `/__open-in-editor` (paths confined to the project). Registered with `addCustomTab` from `@nuxt/devtools-kit@^3` (the version matching the DevTools Nuxt 4.6 ships).

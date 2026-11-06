@@ -47,10 +47,10 @@ interface PendingCapture {
   readonly detectedAt: number;
   readonly msSinceNavigationStart: number | null;
   /**
-   * Reads the component's element lazily. During a node mismatch Vue has not created the client
-   * element yet when it warns, so the element is only resolved at flush time, after patching.
+   * Reads the component's root elements lazily. During a node mismatch Vue has not created the
+   * client element yet when it warns, so they are only resolved at flush time, after patching.
    */
-  readonly resolveElement: () => unknown;
+  readonly resolveRoots: () => readonly Element[];
   /** Compiled component code, read when the warning arrives (before anything is patched). */
   readonly componentSource: string | null;
 }
@@ -93,6 +93,60 @@ function componentSourceOf(instance: ComponentPublicInstance | null): string | n
   if (parts.length === 0) return null;
   const source = parts.join('\n\n');
   return source.length > MAX_SOURCE_CHARS ? source.slice(0, MAX_SOURCE_CHARS) : source;
+}
+
+/** Deepest vnode tree walked looking for root elements; real component trees are far shallower. */
+const MAX_ROOT_DEPTH = 8;
+const MAX_ROOTS = 20;
+
+/** Adds the elements that make up `vnode` (a component, a fragment or an element) to `out`. */
+function collectRootElements(vnode: unknown, out: Element[], depth: number): void {
+  if (depth > MAX_ROOT_DEPTH || out.length >= MAX_ROOTS) return;
+  if (typeof vnode !== 'object' || vnode === null) return;
+  const node = vnode as Readonly<Record<string, unknown>>;
+  const el = node['el'];
+  if (typeof el === 'object' && el !== null && (el as Partial<Node>).nodeType === 1) {
+    out.push(el as Element);
+    return;
+  }
+  // A component vnode owns a subtree; a fragment vnode owns an array of child vnodes.
+  const component = node['component'];
+  if (typeof component === 'object' && component !== null) {
+    collectRootElements(
+      (component as Readonly<Record<string, unknown>>)['subTree'],
+      out,
+      depth + 1,
+    );
+  }
+  const children = node['children'];
+  if (Array.isArray(children)) {
+    for (const child of children as unknown[]) collectRootElements(child, out, depth + 1);
+  }
+}
+
+/**
+ * The elements a component renders at its top level. A component with one root element has it in
+ * `$el`. A component with several roots (a fragment) has a text anchor there, and the anchor's
+ * parent belongs to whoever uses the component, so the roots are found in its vnode tree instead.
+ * Without that the report would name the caller's element, file and markup.
+ */
+function rootElementsOf(instance: ComponentPublicInstance | null): readonly Element[] {
+  if (instance === null) return [];
+  try {
+    // `$el` is typed `any` by Vue; it is narrowed here.
+    const el: unknown = instance.$el;
+    if (typeof el === 'object' && el !== null && (el as Partial<Node>).nodeType === 1) {
+      return [el as Element];
+    }
+    const roots: Element[] = [];
+    collectRootElements(instance.$.subTree, roots, 0);
+    if (roots.length > 0) return roots;
+    // Nothing found (an empty render, say): the old behaviour, the anchor's parent.
+    const fallback = asElement(el);
+    return fallback === null ? [] : [fallback];
+  } catch {
+    return [];
+  }
 }
 
 /** Tag names from the root down to (not including) `element`. */
@@ -139,9 +193,10 @@ export function createInterceptor(deps: InterceptorDeps): Interceptor {
   let counter = 0;
 
   function complete(capture: PendingCapture): HydrationIssue {
-    const root = asElement(capture.resolveElement());
+    const roots = capture.resolveRoots();
+    const root = roots[0] ?? null;
     const offending =
-      root === null ? null : pickOffendingElement(root, deps.attribute, capture.warning);
+      root === null ? null : pickOffendingElement(roots, deps.attribute, capture.warning);
     const stamped = offending ?? closestStamped(root, deps.attribute);
     const stamp = stamped?.getAttribute(deps.attribute) ?? null;
 
@@ -214,11 +269,7 @@ export function createInterceptor(deps: InterceptorDeps): Interceptor {
       componentSource: componentSourceOf(instance),
       detectedAt: deps.now(),
       msSinceNavigationStart: deps.sinceNavigationStart(),
-      resolveElement: () => {
-        // `$el` is typed `any` by Vue; it is narrowed to an Element in `asElement`.
-        const element: unknown = instance?.$el;
-        return element;
-      },
+      resolveRoots: () => rootElementsOf(instance),
     });
     if (mounted) deps.schedule(flush);
     return true;

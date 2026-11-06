@@ -13,6 +13,9 @@ export const INTERNAL_LOG_PREFIX = '[HydrationDoctor:Internal]';
 /** Where the dev server mounts the DevTools endpoint and page (dev only). */
 export const DEVTOOLS_BASE_PATH = '/__nhd';
 
+/** Marker header the dev endpoint requires on writes and on opening an editor. */
+export const DEVTOOLS_CLIENT_HEADER = 'x-nhd-client';
+
 /** Endpoint the browser reports captured issues to. */
 export const DEVTOOLS_ISSUES_PATH = '/__nhd/issues';
 

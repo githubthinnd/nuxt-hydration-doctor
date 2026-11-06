@@ -134,4 +134,14 @@ describe('diffHtml', () => {
     const diff = diffHtml('<p>&lt;img src=x onerror=alert(1)&gt;</p>', '<p>ok</p>');
     expect(diff.rows.some((row) => text(row, 'server')?.includes('onerror'))).toBe(true);
   });
+
+  it('takes time proportional to the markup for a tag padded with a huge run of spaces', () => {
+    // Stripping an attribute from a tag like this was quadratic in the run.
+    const padded = `<div${' '.repeat(50_000)}class="x"${' '.repeat(50_000)}data-nhd-loc="a.vue:1:1">hi</div>`;
+    const start = performance.now();
+    const diff = diffHtml(padded, padded, { hideAttributes: ['data-nhd-loc'] });
+    expect(performance.now() - start).toBeLessThan(200);
+    expect(diff.identical).toBe(true);
+    expect(text(required(diff.rows[0]), 'server')).toBe('<div class="x">');
+  });
 });

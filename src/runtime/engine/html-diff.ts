@@ -42,7 +42,9 @@ function toLines(html: string, hidden: readonly string[]): { lines: string[]; tr
       depth = Math.max(0, depth - 1);
       lines.push(INDENT.repeat(depth) + token.raw.replace(/\s+/g, ' '));
     } else if (token.kind === 'open') {
-      lines.push(INDENT.repeat(depth) + stripAttributes(token.raw, hidden).replace(/\s+/g, ' '));
+      // Collapse whitespace first: stripping attributes from a tag with a huge run of spaces would
+      // otherwise cost time proportional to the square of the run.
+      lines.push(INDENT.repeat(depth) + stripAttributes(token.raw.replace(/\s+/g, ' '), hidden));
       if (!token.selfClosing) depth += 1;
     } else {
       const text = token.raw.replace(/\s+/g, ' ').trim();

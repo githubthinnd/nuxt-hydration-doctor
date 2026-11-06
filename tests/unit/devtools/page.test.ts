@@ -31,10 +31,11 @@ interface Api {
   reports: WireReport[];
   latest: number;
   generation: number;
+  epoch?: string;
 }
 
 /** Loads the page's own HTML and script against a scripted dev API. */
-async function openPage(api: () => Api | 'down') {
+async function openPage(api: () => Api | 'down' | 'forbidden') {
   const body = /<body>([\s\S]*)<\/body>/.exec(ASSET_HTML)?.[1] ?? '';
   document.body.innerHTML = body.replace(/<script[^>]*><\/script>/, '');
   const calls: { url: string; init?: RequestInit }[] = [];
@@ -45,9 +46,13 @@ async function openPage(api: () => Api | 'down') {
     if (url.startsWith('/__open-in-editor')) return Promise.resolve({ ok: true });
     const state = api();
     if (state === 'down') return Promise.reject(new Error('offline'));
+    if (state === 'forbidden') {
+      return Promise.resolve({ ok: false, status: 403, json: () => Promise.resolve({}) });
+    }
     const since = Number(new URL(url, 'http://x').searchParams.get('since'));
     return Promise.resolve({
       ok: true,
+      status: 200,
       json: () =>
         Promise.resolve({
           ...state,
@@ -275,5 +280,60 @@ describe('DevTools page behaviour', () => {
     for (const call of apiCalls) {
       expect(call.init?.headers).toEqual({ 'x-nhd-client': '1' });
     }
+  });
+
+  it.each(['__proto__', 'constructor', 'toString', 'hasOwnProperty'])(
+    'lists a report whose page load id is "%s" like any other',
+    async (id) => {
+      const report = wire({ pageLoadId: id });
+      const page = await openPage(() => ({ reports: [report], latest: 1, generation: 0 }));
+
+      // Before the fix this id made grouping throw and the tab showed "Cannot reach the dev server".
+      expect(page.q('#status')?.textContent).toBe('1 report');
+      expect(page.qa('.card')).toHaveLength(1);
+      expect(page.q('.group-title')?.textContent).toBe(`Page load ${id} · 1 issue`);
+    },
+  );
+
+  it('keeps showing everything when hostile ids and normal ids are mixed', async () => {
+    const reports = [
+      wire({ seq: 1, pageLoadId: '__proto__' }),
+      wire({ seq: 2, pageLoadId: 'normal' }),
+      wire({ seq: 3, pageLoadId: '__proto__' }),
+    ];
+    const page = await openPage(() => ({ reports, latest: 3, generation: 0 }));
+    expect(page.qa('.group-title').map((t) => t.textContent)).toEqual([
+      'Page load normal · 1 issue',
+      'Page load __proto__ · 2 issues',
+    ]);
+  });
+
+  it('starts over when the dev server was restarted (new epoch, sequence numbers reset)', async () => {
+    const state: Api = {
+      reports: [wire({ seq: 1 }), wire({ seq: 2 }), wire({ seq: 3 })],
+      latest: 3,
+      generation: 0,
+      epoch: 'before',
+    };
+    const page = await openPage(() => state);
+    expect(page.qa('.card')).toHaveLength(3);
+
+    // The server restarts: it counts from zero again and has one new report.
+    state.epoch = 'after';
+    state.reports = [wire({ seq: 1, pageLoadId: 'fresh' })];
+    state.latest = 1;
+    await vi.advanceTimersByTimeAsync(1600);
+
+    // Without the epoch the page would keep asking for seq > 3 and never see seq 1.
+    expect(page.qa('.card')).toHaveLength(1);
+    expect(page.q('.group-title')?.textContent).toBe('Page load fresh · 1 issue');
+  });
+
+  it('explains how to fix a refused host instead of claiming the server is unreachable', async () => {
+    const page = await openPage(() => 'forbidden');
+    const status = page.q('#status');
+    expect(status?.textContent).toContain('refused this address');
+    expect(status?.textContent).toContain('allowedHosts');
+    expect(status?.className).toBe('error');
   });
 });

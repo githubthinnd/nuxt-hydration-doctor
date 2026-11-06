@@ -3,6 +3,7 @@ import { nextTick } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import HydrationDoctorHUD from '../../src/runtime/components/HydrationDoctorHUD.vue';
 import type { DiagnosticResult } from '../../src/runtime/domain/diagnostic';
+import type { HydrationIssue, SourceLocation } from '../../src/runtime/domain/issue';
 import { mountHud, type HudHandle } from '../../src/runtime/hud/mount-hud';
 import { createIssueStore } from '../../src/runtime/interceptor/issue-store';
 import { makeIssue } from '../support/issue';
@@ -26,12 +27,15 @@ function diagnosis(overrides: Partial<DiagnosticResult> = {}): DiagnosticResult 
 
 let handle: HudHandle | null = null;
 
-function mount(diagnostics: readonly DiagnosticResult[]): {
+function mount(
+  diagnostics: readonly DiagnosticResult[],
+  extra: { openInEditor?: (location: SourceLocation) => void; issue?: HydrationIssue } = {},
+): {
   root: ShadowRoot;
   copy: ReturnType<typeof vi.fn>;
 } {
   const api = createIssueStore(10, () => undefined);
-  api.add(makeIssue());
+  api.add(extra.issue ?? makeIssue());
   const copy = vi.fn();
   handle = mountHud({
     document,
@@ -42,6 +46,7 @@ function mount(diagnostics: readonly DiagnosticResult[]): {
     autoOpen: true,
     toEntry: (issue) => ({ issue, diff: null, diagnostics }),
     copyText: copy,
+    ...(extra.openInEditor === undefined ? {} : { openInEditor: extra.openInEditor }),
     reportInternal: (message, error) => {
       throw new Error(`${message}: ${String(error)}`);
     },
@@ -130,5 +135,40 @@ describe('HUD diagnosis section', () => {
     expect(root.querySelectorAll('img')).toHaveLength(0);
     expect(root.querySelector('.nhd-diagnoses')?.textContent).toContain('onerror');
     expect((window as unknown as Record<string, unknown>)['__nhd_pwned']).toBeUndefined();
+  });
+});
+
+describe('HUD Open in editor', () => {
+  const button = (root: ShadowRoot): HTMLElement | undefined =>
+    Array.from(root.querySelectorAll<HTMLElement>('.nhd-loc .nhd-action')).find((candidate) =>
+      candidate.textContent.includes('Open in editor'),
+    );
+
+  it('opens the source location of the selected issue', async () => {
+    const open = vi.fn();
+    const { root } = mount([], { openInEditor: open });
+    await nextTick();
+
+    required(button(root), 'Open in editor button').click();
+
+    expect(open).toHaveBeenCalledWith({ file: 'components/Widget.vue', line: 3, column: 5 });
+  });
+
+  it('is not offered when no opener was supplied (the dev endpoint is off)', async () => {
+    const { root } = mount([]);
+    await nextTick();
+    expect(button(root)).toBeUndefined();
+    // Copy is still there.
+    expect(root.querySelector('.nhd-loc')?.textContent).toContain('Copy');
+  });
+
+  it('is not offered for an issue without a source location', async () => {
+    const { root } = mount([], {
+      openInEditor: vi.fn(),
+      issue: makeIssue({ location: null, occurrence: null }),
+    });
+    await nextTick();
+    expect(root.querySelector('.nhd-loc')).toBeNull();
+    expect(button(root)).toBeUndefined();
   });
 });

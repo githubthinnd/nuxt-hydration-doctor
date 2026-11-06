@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import type { DiffRow, DiffSegment } from '../domain/diff';
 import type { HudEntry, OverlayBox } from '../domain/hud';
-import type { HydrationMismatchKind } from '../domain/issue';
+import type { HydrationMismatchKind, SourceLocation } from '../domain/issue';
 import { formatSourceLocation } from '../domain/location';
 import { HUD_STYLES } from './hud-styles';
 
@@ -18,6 +18,8 @@ const props = defineProps<{
   overlays: readonly OverlayBox[];
   selectedId: string | null;
   open: boolean;
+  /** Whether "Open in editor" can work (the dev endpoint it goes through exists). */
+  canOpen: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -26,12 +28,16 @@ const emit = defineEmits<{
   close: [];
   clear: [];
   copy: [text: string];
+  open: [location: SourceLocation];
 }>();
 
 const KIND_LABEL: Record<HydrationMismatchKind, string> = {
   'text-mismatch': 'Text mismatch',
   'node-mismatch': 'Node mismatch',
   'children-mismatch': 'Children mismatch',
+  'class-mismatch': 'Class mismatch',
+  'style-mismatch': 'Style mismatch',
+  'attribute-mismatch': 'Attribute mismatch',
 };
 const STATUS_MARK: Record<DiffRow['status'], string> = {
   same: ' ',
@@ -170,6 +176,14 @@ function cellClass(row: DiffRow, which: 'server' | 'client'): string[] {
             <dd>
               <span v-if="locationText(selected) !== null" class="nhd-loc">
                 <code>{{ locationText(selected) }}</code>
+                <button
+                  v-if="canOpen && selected.issue.location !== null"
+                  type="button"
+                  class="nhd-action"
+                  @click="selected.issue.location !== null && emit('open', selected.issue.location)"
+                >
+                  Open in editor
+                </button>
                 <button
                   type="button"
                   class="nhd-action"

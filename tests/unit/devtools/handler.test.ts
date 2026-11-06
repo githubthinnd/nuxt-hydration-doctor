@@ -11,7 +11,7 @@ import { makeReport } from '../../support/report';
  * objects, no port is opened.
  */
 function server() {
-  const registry = createReportRegistry(50, () => 1234);
+  const registry = createReportRegistry(50, () => 1234, 'test-epoch');
   const app = createApp();
   app.use('/__nhd', createDevtoolsHandler({ registry, rootDir: resolve('/project') }));
   const handle = toWebHandler(app);
@@ -98,5 +98,53 @@ describe('devtools handler (h3 transport)', () => {
   it('answers 404 for anything else', async () => {
     const { fetchDevtools } = server();
     expect((await fetchDevtools('/secret')).status).toBe(404);
+  });
+
+  it('stops reading a chunked body that has no Content-Length once it passes the limit', async () => {
+    const { fetchDevtools, registry } = server();
+    const chunk = new TextEncoder().encode('x'.repeat(64 * 1024));
+    const offered = 50 * 1024 * 1024;
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += chunk.byteLength;
+        controller.enqueue(chunk);
+        if (pulled >= offered) controller.close();
+      },
+    });
+
+    const response = await fetchDevtools('/issues', {
+      method: 'POST',
+      headers: CLIENT,
+      body,
+      // Node requires this to send a stream; no Content-Length is set.
+      duplex: 'half',
+    } as RequestInit);
+
+    expect(response.status).toBe(413);
+    expect(registry.since(0)).toEqual([]);
+    // The server asked for a small multiple of the limit, not for the 50 MB on offer.
+    expect(pulled).toBeLessThan(MAX_REPORT_BYTES * 4);
+  });
+
+  it('refuses a foreign Host name before reading anything', async () => {
+    const { fetchDevtools, registry } = server();
+    const response = await fetchDevtools('/issues', {
+      method: 'POST',
+      headers: { ...CLIENT, host: 'evil.example' },
+      body: JSON.stringify(makeReport()),
+    });
+    expect(response.status).toBe(403);
+    expect(registry.since(0)).toEqual([]);
+  });
+
+  it('redirects /open to the editor endpoint', async () => {
+    const { fetchDevtools } = server();
+    const response = await fetchDevtools('/open?file=components/A.vue&line=4&column=2', {
+      headers: CLIENT,
+      redirect: 'manual',
+    });
+    expect(response.status).toBe(302);
+    expect(response.headers.get('location')).toContain('/__open-in-editor?file=');
   });
 });
