@@ -59,7 +59,8 @@
     "lint": "eslint .",
     "format": "prettier --write . --ignore-path .gitignore --ignore-path .prettierignore",
     "format:check": "prettier --check . --ignore-path .gitignore --ignore-path .prettierignore",
-    "test": "vitest run",
+    "test": "vitest run --configLoader runner",
+    "test:e2e": "playwright test",
     "arch": "depcruise src --config .dependency-cruiser.cjs",
     "verify:package": "node scripts/verify-types.mjs && publint",
     "verify:production": "node scripts/verify-production.mjs",
@@ -67,9 +68,10 @@
     "prepublishOnly": "npm run check"
   },
   "dependencies": {
-    "@nuxt/devtools-kit": "^4.1.0",
+    "@nuxt/devtools-kit": "^3.4.4",
     "@nuxt/kit": "^4.6.4",
     "@vue/compiler-sfc": "^3.5.45",
+    "h3": "^1.15.11",
     "magic-string": "^1.4.5",
     "unplugin": "^3.7.0"
   },

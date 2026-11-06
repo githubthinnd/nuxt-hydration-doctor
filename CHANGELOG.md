@@ -4,6 +4,16 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ## [Unreleased]
 
+### Added (Phase 6)
+
+- **Nuxt DevTools tab** "Hydration Doctor" (`src/devtools/`): a session history of captured mismatches with breadcrumbs, timings (ms after navigation start, time received), the diagnosis and fix, the server/client markup, and **Open in Editor** links through Nuxt's own `/__open-in-editor` (paths confined to the project). Registered with `addCustomTab` from `@nuxt/devtools-kit@^3` (the version matching the DevTools Nuxt 4.6 ships).
+- Dev-only endpoint at `/__nhd` (`addDevServerHandler`) fed by the browser (`runtime/bridge/reporter.ts`). Defences: cross-site requests refused, `x-nhd-client` header required on writes, 256 KB body cap, strict payload validation (`parseHydrationReport`), strict CSP on the page, bounded history. See ADR-0004 and SECURITY.md.
+- Registered only when both `devtools.enabled` and Nuxt DevTools are on, and only in development; `verify:production` now also scans for `__nhd` and `x-nhd-client`.
+- Playground: seven deliberate scenarios (clock, random value, `window`, `localStorage`, `<div>` in `<p>`, `<tr>` in `<table>`, state changed before hydration) and a control page.
+- Playwright suite (`tests/e2e`, `npm run test:e2e`, CI job) covering every scenario, the HUD, the DevTools tab and the endpoint's defences. **Not run in the development sandbox** (no browser, no local port).
+- `tests/integration/playground-scenarios.test.ts`: every scenario rendered by Vite SSR from the page's own `.vue`, hydrated in the client build and diagnosed, with the source locations checked against the files.
+- `h3` is now a direct dependency; `@nuxt/devtools-kit` moved from `^4.1.0` to `^3.4.4`.
+
 ### Added (Phase 5)
 
 - `runtime/engine/diagnostics.ts` (`diagnoseIssue`) and four rules in `runtime/engine/rules/`: **browser global leaks**, **non-deterministic values** (current time, random values, time zone, locale), **invalid HTML nesting** and **state desynchronisation**. Each returns an explanation, the evidence it saw, a confidence and a copy-pasteable fix; results below the minimum confidence are dropped and a failing rule is skipped.

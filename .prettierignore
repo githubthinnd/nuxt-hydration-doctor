@@ -7,3 +7,6 @@ package-lock.json
 playground/.nuxt
 playground/.output
 tests/architecture/fixtures
+
+# Deliberately invalid HTML (<div> inside <p>): Prettier's HTML parser refuses to read it.
+playground/pages/nesting.vue

@@ -65,6 +65,8 @@ export interface RuntimeOptions {
   };
   readonly historyLimit: number;
   readonly disabledCategories: readonly DiagnosticCategory[];
+  /** Report captured issues to the dev server for the Nuxt DevTools tab. */
+  readonly devtools: boolean;
 }
 
 export const DEFAULT_OPTIONS: ResolvedModuleOptions = {
@@ -223,6 +225,7 @@ export function toRuntimeOptions(options: ResolvedModuleOptions): RuntimeOptions
     hud: { enabled: options.hud.enabled, autoOpen: options.hud.autoOpen },
     historyLimit: options.history.limit,
     disabledCategories: options.diagnostics.disabledCategories,
+    devtools: options.devtools.enabled,
   };
 }
 
@@ -232,8 +235,8 @@ export function toRuntimeOptions(options: ResolvedModuleOptions): RuntimeOptions
  */
 export function parseRuntimeOptions(value: unknown): RuntimeOptions | null {
   if (!isRecord(value)) return null;
-  const { debug, attribute, hud, historyLimit, disabledCategories } = value;
-  if (typeof debug !== 'boolean') return null;
+  const { debug, attribute, hud, historyLimit, disabledCategories, devtools } = value;
+  if (typeof debug !== 'boolean' || typeof devtools !== 'boolean') return null;
   if (typeof attribute !== 'string' || !ATTRIBUTE_PATTERN.test(attribute)) return null;
   if (
     !isRecord(hud) ||
@@ -254,5 +257,6 @@ export function parseRuntimeOptions(value: unknown): RuntimeOptions | null {
     hud: { enabled: hud['enabled'], autoOpen: hud['autoOpen'] },
     historyLimit,
     disabledCategories: categories,
+    devtools,
   };
 }

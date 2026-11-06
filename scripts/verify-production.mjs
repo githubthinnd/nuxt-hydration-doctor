@@ -17,7 +17,16 @@ const output = join(root, 'playground/.output');
 // "nuxt-hydration-doctor:" (with the colon) is the prefix of the plugin names; the bare package
 // name is deliberately not scanned because Nitro derives its output package name from the project
 // name and the playground's own text mentions it.
-const FORBIDDEN = ['data-nhd-loc', 'nuxt-hydration-doctor:', 'HydrationDoctor', 'hydrationDoctor'];
+// "__nhd" is the DevTools endpoint's path and "x-nhd-client" its marker header, so a leaked
+// reporter or HUD would show up here too.
+const FORBIDDEN = [
+  'data-nhd-loc',
+  'nuxt-hydration-doctor:',
+  'HydrationDoctor',
+  'hydrationDoctor',
+  '__nhd',
+  'x-nhd-client',
+];
 // A string that must appear, proving the scan actually read the bundle.
 const CONTROL = 'nuxt';
 

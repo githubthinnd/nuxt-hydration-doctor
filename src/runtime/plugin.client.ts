@@ -1,5 +1,6 @@
 import { defineNuxtPlugin, useRuntimeConfig } from 'nuxt/app';
-import { INTERNAL_LOG_PREFIX, RUNTIME_CONFIG_KEY } from './domain/constants';
+import { createReporter } from './bridge/reporter';
+import { DEVTOOLS_ISSUES_PATH, INTERNAL_LOG_PREFIX, RUNTIME_CONFIG_KEY } from './domain/constants';
 import { parseRuntimeOptions } from './domain/options';
 import HydrationDoctorHUD from './components/HydrationDoctorHUD.vue';
 import { diagnoseIssue } from './engine/diagnostics';
@@ -101,28 +102,53 @@ const hydrationDoctorPlugin: ReturnType<typeof defineNuxtPlugin> = defineNuxtPlu
         interceptor.markMounted();
       });
 
+      // Diagnosed once per issue: the HUD and the DevTools report both use the result. A failing
+      // heuristic must not hide the issue itself, so a failure means "no diagnosis".
+      const diagnosed = new Map<string, HudEntry['diagnostics']>();
+      const diagnose = (issue: HydrationIssue): HudEntry['diagnostics'] => {
+        const known = diagnosed.get(issue.id);
+        if (known !== undefined) return known;
+        let diagnostics: HudEntry['diagnostics'] = [];
+        try {
+          diagnostics = diagnoseIssue(issue, {
+            browserValues: collectBrowserValues(window),
+            stateChanges: stateWatcher.changes(),
+            disabledCategories: options.disabledCategories,
+          });
+        } catch (error) {
+          reportInternal('could not diagnose an issue', error);
+        }
+        diagnosed.set(issue.id, diagnostics);
+        return diagnostics;
+      };
+
+      if (options.devtools) {
+        const report = createReporter({
+          endpoint: DEVTOOLS_ISSUES_PATH,
+          // Issue ids restart at every page load; this tells the loads apart in the DevTools tab.
+          pageLoadId: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          send: (url, request) => fetch(url, request),
+          onFailure: (error) => {
+            if (options.debug) reportInternal('could not report to the DevTools tab', error);
+          },
+        });
+        interceptor.api.subscribe((issue) => {
+          report({ issue, diagnostics: diagnose(issue) });
+        });
+      }
+
       if (options.hud.enabled) {
         const hud = options.hud;
-        const buildEntry = (issue: HydrationIssue): HudEntry => {
-          const diff =
+        const buildEntry = (issue: HydrationIssue): HudEntry => ({
+          issue,
+          diff:
             issue.serverHtml !== null && issue.clientHtml !== null
               ? diffHtml(issue.serverHtml, issue.clientHtml, {
                   hideAttributes: [options.attribute],
                 })
-              : null;
-          // A failing heuristic must not hide the issue itself: show it without a diagnosis.
-          let diagnostics: HudEntry['diagnostics'] = [];
-          try {
-            diagnostics = diagnoseIssue(issue, {
-              browserValues: collectBrowserValues(window),
-              stateChanges: stateWatcher.changes(),
-              disabledCategories: options.disabledCategories,
-            });
-          } catch (error) {
-            reportInternal('could not diagnose an issue', error);
-          }
-          return { issue, diff, diagnostics };
-        };
+              : null,
+          diagnostics: diagnose(issue),
+        });
         // Mounted after the application so the HUD is never part of the hydrated tree.
         nuxtApp.hook('app:mounted', () => {
           try {

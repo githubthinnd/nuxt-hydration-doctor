@@ -6,7 +6,8 @@
  *   build-time (Node, runs inside `nuxt dev` / `nuxt build`)
  *     src/module.ts     composition root, the only entry Nuxt loads        -> plugins, devtools, runtime/domain
  *     src/plugins/      compiler transforms (Vite/unplugin, magic-string)   -> runtime/domain
- *     src/devtools.ts   Nuxt DevTools integration                          -> runtime/domain
+ *     src/devtools/     Nuxt DevTools tab and dev-only endpoint            -> runtime/domain
+ *     runtime/bridge       reports issues to the dev server               -> domain
  *
  *   runtime (browser, shipped as source by the module builder, dev only)
  *     runtime/domain       shared kernel: types, options, errors           -> (nothing)
@@ -87,6 +88,13 @@ module.exports = {
       to: { path: '^src/', pathNot: '^src/runtime/(hud|domain)/' },
     },
     {
+      name: 'runtime-bridge-depends-only-on-domain',
+      severity: 'error',
+      comment: 'The reporter is handed its transport (fetch) by the composition root.',
+      from: { path: '^src/runtime/bridge/' },
+      to: { path: '^src/', pathNot: '^src/runtime/(bridge|domain)/' },
+    },
+    {
       name: 'runtime-components-depend-only-on-domain',
       severity: 'error',
       from: { path: '^src/runtime/components/' },
@@ -113,7 +121,7 @@ module.exports = {
       severity: 'error',
       comment:
         'Build-time code references runtime files by path (addPlugin); it never imports them.',
-      from: { path: '^src/(module|devtools)\\.ts$|^src/plugins/' },
+      from: { path: '^src/module\\.ts$|^src/devtools/|^src/plugins/' },
       to: { path: '^src/runtime/', pathNot: '^src/runtime/domain/' },
     },
     {
@@ -139,8 +147,16 @@ module.exports = {
     {
       name: 'only-module-imports-devtools',
       severity: 'error',
-      from: { path: '^src/', pathNot: '^src/(module|devtools)\\.ts$' },
-      to: { path: '^src/devtools\\.ts$' },
+      from: { path: '^src/', pathNot: '^src/(module\\.ts$|devtools/)' },
+      to: { path: '^src/devtools/' },
+    },
+    {
+      name: 'devtools-depends-only-on-domain',
+      severity: 'error',
+      comment:
+        'The DevTools endpoint is plain request/response code over the shared kernel; it never reaches into the compiler plugins.',
+      from: { path: '^src/devtools/' },
+      to: { path: '^src/', pathNot: '^src/(devtools|runtime/domain)/' },
     },
     {
       name: 'src-must-not-import-tests',

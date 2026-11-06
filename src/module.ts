@@ -1,5 +1,6 @@
 import { addPlugin, addVitePlugin, createResolver, defineNuxtModule, useLogger } from '@nuxt/kit';
 import type { NuxtModule } from '@nuxt/schema';
+import { registerDevtools } from './devtools';
 import { astInjector } from './plugins/ast-injector';
 import { CONFIG_KEY, MODULE_NAME, RUNTIME_CONFIG_KEY } from './runtime/domain/constants';
 import {
@@ -32,9 +33,23 @@ const hydrationDoctorModule: NuxtModule<ModuleOptions, ModuleOptions> =
 
       const resolver = createResolver(import.meta.url);
 
+      // The DevTools integration needs both our option and Nuxt DevTools itself to be on.
+      const nuxtDevtools: unknown = nuxt.options.devtools;
+      const nuxtDevtoolsOn =
+        nuxtDevtools !== false &&
+        !(
+          typeof nuxtDevtools === 'object' &&
+          nuxtDevtools !== null &&
+          (nuxtDevtools as { enabled?: unknown }).enabled === false
+        );
+      const devtoolsActive = options.devtools.enabled && nuxtDevtoolsOn;
+
       // Browser-safe options travel through runtimeConfig. This assignment only happens in
       // dev, so production payloads never contain it.
-      nuxt.options.runtimeConfig.public[RUNTIME_CONFIG_KEY] = toRuntimeOptions(options);
+      nuxt.options.runtimeConfig.public[RUNTIME_CONFIG_KEY] = toRuntimeOptions({
+        ...options,
+        devtools: { enabled: devtoolsActive },
+      });
 
       addPlugin({ src: resolver.resolve('./runtime/plugin.client'), mode: 'client' });
 
@@ -50,6 +65,9 @@ const hydrationDoctorModule: NuxtModule<ModuleOptions, ModuleOptions> =
           }),
         { prepend: true },
       );
+
+      // Phase 6: the DevTools tab and the dev-only endpoint behind it.
+      if (devtoolsActive) registerDevtools(nuxt.options.rootDir);
 
       if (options.debug) {
         useLogger(MODULE_NAME).info('Hydration Doctor is active (development only).');

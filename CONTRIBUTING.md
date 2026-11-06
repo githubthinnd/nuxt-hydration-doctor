@@ -12,6 +12,13 @@ npm run check
 
 Developing here needs Node `^22.22.3 || ^24.15` (the dev dependencies Nuxt 4.6 and Vitest 5 require it); the published package itself supports `^20.19.0 || >=22.12.0`. `npm run check` runs formatting, lint, type checks (including one that compiles `runtime/domain` and `runtime/engine` with no DOM or Node typings), the architecture rules, all tests, the build, and the public-type and publint verification.
 
+End-to-end tests (a real browser against the playground) are separate from `npm run check`:
+
+```bash
+npx playwright install chromium   # once
+npm run test:e2e
+```
+
 ## Ground rules
 
 - **Zero production footprint.** Everything that touches `nuxt.options` goes below the `shouldActivate` guard in `src/module.ts`. Do not rely on tree-shaking.

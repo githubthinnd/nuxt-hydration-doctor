@@ -47,7 +47,7 @@ export default tseslint.config(
   {
     languageOptions: {
       parserOptions: {
-        projectService: { allowDefaultProject: ['vitest.config.ts'] },
+        projectService: { allowDefaultProject: ['vitest.config.ts', 'playwright.config.ts'] },
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -61,7 +61,7 @@ export default tseslint.config(
   },
   {
     // Build-time code runs in Node: no browser globals.
-    files: ['src/module.ts', 'src/devtools.ts', 'src/plugins/**/*.ts'],
+    files: ['src/module.ts', 'src/devtools/**/*.ts', 'src/plugins/**/*.ts'],
     rules: { 'no-restricted-globals': restrict(BROWSER_GLOBALS, 'in build-time code (Node)') },
   },
   {
