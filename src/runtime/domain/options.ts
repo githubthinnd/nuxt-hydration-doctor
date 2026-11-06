@@ -1,3 +1,4 @@
+import { HUD_CORNERS, type HudCorner } from './badge-position';
 import { DEFAULT_LOCATION_ATTRIBUTE } from './constants';
 import { DIAGNOSTIC_CATEGORIES, type DiagnosticCategory } from './diagnostic';
 import { HydrationDoctorError } from './errors';
@@ -23,6 +24,11 @@ export interface ModuleOptions {
     enabled?: boolean;
     /** Open the HUD as soon as the first mismatch is captured. */
     autoOpen?: boolean;
+    /**
+     * Corner the badge starts in. It can be dragged anywhere (and moved with Alt + arrow keys),
+     * and the place it was left is remembered; this is where "Reset position" brings it back.
+     */
+    position?: HudCorner;
   };
   /** Nuxt DevTools tab (Phase 6). */
   devtools?: { enabled?: boolean };
@@ -49,6 +55,7 @@ export interface ResolvedModuleOptions {
   readonly hud: {
     readonly enabled: boolean;
     readonly autoOpen: boolean;
+    readonly position: HudCorner;
   };
   readonly devtools: { readonly enabled: boolean };
   readonly history: { readonly limit: number };
@@ -62,6 +69,7 @@ export interface RuntimeOptions {
   readonly hud: {
     readonly enabled: boolean;
     readonly autoOpen: boolean;
+    readonly position: HudCorner;
   };
   readonly historyLimit: number;
   readonly disabledCategories: readonly DiagnosticCategory[];
@@ -73,7 +81,7 @@ export const DEFAULT_OPTIONS: ResolvedModuleOptions = {
   enabled: true,
   debug: false,
   sourceMap: { attribute: DEFAULT_LOCATION_ATTRIBUTE, exclude: ['/node_modules/'] },
-  hud: { enabled: true, autoOpen: true },
+  hud: { enabled: true, autoOpen: true, position: 'bottom-right' },
   devtools: { enabled: true },
   history: { limit: 50 },
   diagnostics: { disabledCategories: [] },
@@ -108,6 +116,15 @@ function readBoolean(group: UnknownRecord, key: string, path: string, fallback: 
   if (typeof value !== 'boolean')
     reject(`${path}.${key}`, `Option "${path}.${key}" must be a boolean.`);
   return value;
+}
+
+function readCorner(value: unknown, fallback: HudCorner): HudCorner {
+  if (value === undefined) return fallback;
+  const corner = HUD_CORNERS.find((known) => known === value);
+  if (corner === undefined) {
+    reject('hud.position', `Option "hud.position" must be one of ${HUD_CORNERS.join(', ')}.`);
+  }
+  return corner;
 }
 
 function readStringArray(
@@ -147,7 +164,7 @@ export function resolveModuleOptions(input: ModuleOptions = {}): ResolvedModuleO
     'diagnostics',
   ]);
   const sourceMap = readGroup(root['sourceMap'], 'sourceMap', ['attribute', 'exclude']);
-  const hud = readGroup(root['hud'], 'hud', ['enabled', 'autoOpen']);
+  const hud = readGroup(root['hud'], 'hud', ['enabled', 'autoOpen', 'position']);
   const devtools = readGroup(root['devtools'], 'devtools', ['enabled']);
   const history = readGroup(root['history'], 'history', ['limit']);
   const diagnostics = readGroup(root['diagnostics'], 'diagnostics', ['disabledCategories']);
@@ -198,6 +215,7 @@ export function resolveModuleOptions(input: ModuleOptions = {}): ResolvedModuleO
     hud: {
       enabled: readBoolean(hud, 'enabled', 'hud', DEFAULT_OPTIONS.hud.enabled),
       autoOpen: readBoolean(hud, 'autoOpen', 'hud', DEFAULT_OPTIONS.hud.autoOpen),
+      position: readCorner(hud['position'], DEFAULT_OPTIONS.hud.position),
     },
     devtools: {
       enabled: readBoolean(devtools, 'enabled', 'devtools', DEFAULT_OPTIONS.devtools.enabled),
@@ -222,7 +240,11 @@ export function toRuntimeOptions(options: ResolvedModuleOptions): RuntimeOptions
   return {
     debug: options.debug,
     attribute: options.sourceMap.attribute,
-    hud: { enabled: options.hud.enabled, autoOpen: options.hud.autoOpen },
+    hud: {
+      enabled: options.hud.enabled,
+      autoOpen: options.hud.autoOpen,
+      position: options.hud.position,
+    },
     historyLimit: options.history.limit,
     disabledCategories: options.diagnostics.disabledCategories,
     devtools: options.devtools.enabled,
@@ -238,10 +260,12 @@ export function parseRuntimeOptions(value: unknown): RuntimeOptions | null {
   const { debug, attribute, hud, historyLimit, disabledCategories, devtools } = value;
   if (typeof debug !== 'boolean' || typeof devtools !== 'boolean') return null;
   if (typeof attribute !== 'string' || !ATTRIBUTE_PATTERN.test(attribute)) return null;
+  const corner = isRecord(hud) ? HUD_CORNERS.find((known) => known === hud['position']) : undefined;
   if (
     !isRecord(hud) ||
     typeof hud['enabled'] !== 'boolean' ||
-    typeof hud['autoOpen'] !== 'boolean'
+    typeof hud['autoOpen'] !== 'boolean' ||
+    corner === undefined
   ) {
     return null;
   }
@@ -254,7 +278,7 @@ export function parseRuntimeOptions(value: unknown): RuntimeOptions | null {
   return {
     debug,
     attribute,
-    hud: { enabled: hud['enabled'], autoOpen: hud['autoOpen'] },
+    hud: { enabled: hud['enabled'], autoOpen: hud['autoOpen'], position: corner },
     historyLimit,
     disabledCategories: categories,
     devtools,

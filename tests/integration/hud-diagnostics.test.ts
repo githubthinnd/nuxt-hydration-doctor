@@ -43,6 +43,7 @@ function mount(
     component: HydrationDoctorHUD,
     api,
     attribute: 'data-nhd-loc',
+    corner: 'bottom-right',
     autoOpen: true,
     toEntry: (issue) => ({ issue, diff: null, diagnostics }),
     copyText: copy,

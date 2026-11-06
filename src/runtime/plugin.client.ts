@@ -1,5 +1,6 @@
 import { defineNuxtPlugin, useRuntimeConfig } from 'nuxt/app';
 import { createReporter } from './bridge/reporter';
+import { BADGE_POSITION_STORAGE_KEY } from './domain/badge-position';
 import {
   DEVTOOLS_BASE_PATH,
   DEVTOOLS_CLIENT_HEADER,
@@ -25,6 +26,18 @@ import type { HydrationIssue, SourceLocation } from './domain/issue';
 const MAX_SNAPSHOT_CHARS = 2_000_000;
 /** Completes pending captures even if `app:mounted` never fires (a crashed hydration, say). */
 const SAFETY_FLUSH_MS = 5000;
+
+/**
+ * Remembers where the badge was left. Reading or writing can throw (storage blocked, private
+ * mode); the HUD catches that and carries on with the position it has.
+ */
+const positionStorage = {
+  load: (): string | null => localStorage.getItem(BADGE_POSITION_STORAGE_KEY),
+  save: (text: string | null): void => {
+    if (text === null) localStorage.removeItem(BADGE_POSITION_STORAGE_KEY);
+    else localStorage.setItem(BADGE_POSITION_STORAGE_KEY, text);
+  },
+};
 
 function copyToClipboard(text: string): void {
   if ('clipboard' in navigator) navigator.clipboard.writeText(text).catch(() => undefined);
@@ -201,6 +214,8 @@ const hydrationDoctorPlugin: ReturnType<typeof defineNuxtPlugin<Injections>> =
                 autoOpen: hud.autoOpen,
                 toEntry: buildEntry,
                 copyText: copyToClipboard,
+                corner: hud.position,
+                positionStorage,
                 // Goes through the dev endpoint, so it is only offered when that endpoint exists.
                 ...(options.devtools ? { openInEditor } : {}),
                 observeResize,

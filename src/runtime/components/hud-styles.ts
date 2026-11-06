@@ -57,11 +57,18 @@ button:focus-visible { outline: 2px solid #8ab4ff; outline-offset: 2px; }
 }
 .nhd-chip--inside { top: 2px; left: 2px; }
 
+/* The box the badge moves in: the viewport minus a margin. Its left/top/transform come from the
+   position fractions (see the component), so the badge keeps its place when the window resizes. */
+.nhd-dock { position: fixed; inset: 16px; pointer-events: none; }
+
 .nhd-badge {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
+  position: absolute;
   pointer-events: auto;
+  /* Dragging must not scroll the page on touch screens or select text. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -72,6 +79,7 @@ button:focus-visible { outline: 2px solid #8ab4ff; outline-offset: 2px; }
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 .nhd-badge--alert { border-color: var(--nhd-accent); }
+.nhd-badge--dragging { cursor: grabbing; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); }
 .nhd-count {
   min-width: 22px;
   padding: 0 6px;
@@ -82,10 +90,14 @@ button:focus-visible { outline: 2px solid #8ab4ff; outline-offset: 2px; }
 }
 .nhd-badge--alert .nhd-count { background: var(--nhd-accent); color: #1a0507; }
 
+/* The panel docks to the screen edges nearest the badge, so it opens on the badge's side of the
+   screen, next to it, and cannot run off screen. */
+.nhd-panel--right { right: 16px; }
+.nhd-panel--left { left: 16px; }
+.nhd-panel--bottom { bottom: 64px; }
+.nhd-panel--top { top: 64px; }
 .nhd-panel {
   position: fixed;
-  right: 16px;
-  bottom: 64px;
   width: min(1000px, calc(100vw - 32px));
   max-height: min(72vh, 720px);
   pointer-events: auto;
@@ -214,7 +226,9 @@ button:focus-visible { outline: 2px solid #8ab4ff; outline-offset: 2px; }
 }
 
 @media (max-width: 640px) {
-  .nhd-panel { right: 8px; left: 8px; width: auto; bottom: 60px; }
+  .nhd-panel { right: 8px; left: 8px; width: auto; }
+  .nhd-panel--bottom { bottom: 60px; }
+  .nhd-panel--top { top: 60px; }
   .nhd-meta { grid-template-columns: 1fr; }
 }
 `;

@@ -89,6 +89,53 @@ test.describe('HUD', () => {
     expect(Math.abs((box?.width ?? 0) - (target?.width ?? 0))).toBeLessThanOrEqual(2);
   });
 
+  test('can be dragged out of the way, stays there across a reload, and can be reset', async ({
+    page,
+  }) => {
+    await page.goto('/random');
+    await waitForIssue(page);
+    const badge = page.locator('.nhd-badge');
+    const before = await badge.boundingBox();
+    expect(before).not.toBeNull();
+
+    // Drag it to the top left, with a few intermediate moves like a real pointer.
+    await page.mouse.move((before?.x ?? 0) + 20, (before?.y ?? 0) + 10);
+    await page.mouse.down();
+    await page.mouse.move(120, 80, { steps: 8 });
+    await page.mouse.move(40, 30, { steps: 8 });
+    await page.mouse.up();
+    const after = await badge.boundingBox();
+    expect(after?.x ?? 999).toBeLessThan(80);
+    expect(after?.y ?? 999).toBeLessThan(80);
+
+    // Letting go of a drag must not also toggle the panel (it was open: it stays open).
+    await expect(page.locator('.nhd-panel')).toBeVisible();
+    // ... and the panel moves to the badge's side of the screen.
+    await expect(page.locator('.nhd-panel')).toHaveClass(/nhd-panel--left/);
+    await expect(page.locator('.nhd-panel')).toHaveClass(/nhd-panel--top/);
+
+    await page.reload();
+    await waitForIssue(page);
+    const reloaded = await page.locator('.nhd-badge').boundingBox();
+    expect(Math.abs((reloaded?.x ?? 0) - (after?.x ?? 0))).toBeLessThanOrEqual(2);
+
+    await page.getByRole('button', { name: 'Reset position' }).click();
+    const reset = await page.locator('.nhd-badge').boundingBox();
+    expect((reset?.x ?? 0) > 200).toBe(true);
+  });
+
+  test('moves with Alt and the arrow keys', async ({ page }) => {
+    await page.goto('/random');
+    await waitForIssue(page);
+    const badge = page.locator('.nhd-badge');
+    const before = await badge.boundingBox();
+    await badge.focus();
+    await page.keyboard.press('Alt+ArrowLeft');
+    await page.keyboard.press('Alt+ArrowLeft');
+    const after = await badge.boundingBox();
+    expect((after?.x ?? 0) < (before?.x ?? 0)).toBe(true);
+  });
+
   test('closes with Escape and reopens from the badge', async ({ page }) => {
     await page.goto('/random');
     await waitForIssue(page);

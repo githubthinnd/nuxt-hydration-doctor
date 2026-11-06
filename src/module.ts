@@ -131,6 +131,7 @@ export default hydrationDoctorModule;
  * "nuxt-hydration-doctor" is listed here, and nowhere else.
  */
 export type { HydrationDoctorApi } from './runtime/domain/api';
+export type { HudCorner } from './runtime/domain/badge-position';
 export type {
   DiagnosticCategory,
   DiagnosticResult,

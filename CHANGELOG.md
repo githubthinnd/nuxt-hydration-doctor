@@ -4,6 +4,14 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ## [Unreleased]
 
+### Movable badge
+
+- The HUD badge can be dragged anywhere (pointer events: mouse, touch, pen) and moved with Alt + arrow keys, because it can sit on top of another debug bar. A press that moves less than 4 px is still a click, and the click that follows a drag does not toggle the panel.
+- The position is kept as fractions of the free space (0 to 1, rounded to 4 decimals), so it survives window resizes and a badge that grows, and CSS places it without measuring. It is remembered in `localStorage` (a throwing or blocked storage is tolerated), validated on the way back in, and "Reset position" returns it to the corner.
+- The panel docks to the screen edges nearest the badge, so it opens beside it and never off screen.
+- New option `hud.position` (`bottom-right` default, `bottom-left`, `top-right`, `top-left`) and public type `HudCorner`.
+- Tests: the position arithmetic, and the real component driven with pointer and keyboard events (31 cases); two Playwright cases (not run).
+
 ### Review pass (after Phase 6)
 
 An independent review plus a verification of everything that had only been assumed. Each fix below has a test that fails without it.

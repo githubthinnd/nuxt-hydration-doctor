@@ -1,5 +1,13 @@
 import { createApp, h, shallowReactive, type Component } from 'vue';
 import type { HydrationDoctorApi } from '../domain/api';
+import {
+  cornerPosition,
+  parseStoredPosition,
+  samePosition,
+  serializePosition,
+  type BadgePosition,
+  type HudCorner,
+} from '../domain/badge-position';
 import type { HudEntry, OverlayBox } from '../domain/hud';
 import type { HydrationIssue, SourceLocation } from '../domain/issue';
 import { createOverlayTracker, type OverlayView } from './overlay';
@@ -23,6 +31,16 @@ export interface HudDeps {
    * goes through is off), in which case the HUD does not offer the button.
    */
   readonly openInEditor?: (location: SourceLocation) => void;
+  /** Corner the badge starts in and returns to on "Reset position". */
+  readonly corner: HudCorner;
+  /**
+   * Where the badge's position is remembered between page loads. Absent when nothing can be
+   * stored; the position is then kept for this page load only. `save(null)` forgets it.
+   */
+  readonly positionStorage?: {
+    load(): string | null;
+    save(text: string | null): void;
+  };
   readonly observeResize?: (element: Element, callback: () => void) => () => void;
   /** Receives the module's own failures; must never throw. */
   readonly reportInternal: (message: string, error: unknown) => void;
@@ -39,6 +57,7 @@ interface HudState {
   overlays: readonly OverlayBox[];
   selectedId: string | null;
   open: boolean;
+  position: BadgePosition;
 }
 
 /**
@@ -57,6 +76,26 @@ export function mountHud(deps: HudDeps): HudHandle {
     'style',
     'all: initial; position: fixed; inset: 0; z-index: 2147483647; pointer-events: none;',
   );
+  /** The remembered position if there is a valid one, else the starting corner. */
+  function initialPosition(): BadgePosition {
+    try {
+      const stored = parseStoredPosition(deps.positionStorage?.load() ?? null);
+      if (stored !== null) return stored;
+    } catch (error) {
+      // Storage can throw (blocked, private mode); the corner is a fine answer.
+      deps.reportInternal('could not read the remembered badge position', error);
+    }
+    return cornerPosition(deps.corner);
+  }
+
+  function remember(text: string | null): void {
+    try {
+      deps.positionStorage?.save(text);
+    } catch (error) {
+      deps.reportInternal('could not remember the badge position', error);
+    }
+  }
+
   const shadow = host.attachShadow({ mode: 'open' });
   const container = deps.document.createElement('div');
   shadow.append(container);
@@ -66,6 +105,7 @@ export function mountHud(deps: HudDeps): HudHandle {
     overlays: [],
     selectedId: null,
     open: false,
+    position: initialPosition(),
   });
 
   const tracker = createOverlayTracker({
@@ -107,6 +147,18 @@ export function mountHud(deps: HudDeps): HudHandle {
         selectedId: state.selectedId,
         open: state.open,
         canOpen: deps.openInEditor !== undefined,
+        position: state.position,
+        customPosition: !samePosition(state.position, cornerPosition(deps.corner)),
+        onMove: (position: BadgePosition) => {
+          state.position = position;
+        },
+        onMoveEnd: () => {
+          remember(serializePosition(state.position));
+        },
+        onResetPosition: () => {
+          state.position = cornerPosition(deps.corner);
+          remember(null);
+        },
         onSelect: (id: string) => {
           state.selectedId = id;
           state.open = true;

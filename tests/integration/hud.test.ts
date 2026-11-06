@@ -49,6 +49,7 @@ function mount(options: { autoOpen?: boolean; issues?: readonly HydrationIssue[]
     component: HydrationDoctorHUD,
     api,
     attribute: ATTR,
+    corner: 'bottom-right',
     autoOpen: options.autoOpen ?? true,
     toEntry: (i) => ({
       issue: i,

@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
+import {
+  dockOf,
+  nudgePosition,
+  NUDGE_STEP,
+  positionFromPointer,
+  type BadgePosition,
+} from '../domain/badge-position';
 import type { DiffRow, DiffSegment } from '../domain/diff';
 import type { HudEntry, OverlayBox } from '../domain/hud';
 import type { HydrationMismatchKind, SourceLocation } from '../domain/issue';
@@ -20,6 +27,10 @@ const props = defineProps<{
   open: boolean;
   /** Whether "Open in editor" can work (the dev endpoint it goes through exists). */
   canOpen: boolean;
+  /** Where the badge is: fractions of the free space, 0 = left/top edge, 1 = right/bottom. */
+  position: BadgePosition;
+  /** True once the badge has been moved away from its starting corner. */
+  customPosition: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -29,7 +40,137 @@ const emit = defineEmits<{
   clear: [];
   copy: [text: string];
   open: [location: SourceLocation];
+  /** The badge is being dragged or nudged to this position. */
+  move: [position: BadgePosition];
+  /** The drag or nudge is over: a good moment to remember the position. */
+  moveEnd: [];
+  resetPosition: [];
 }>();
+
+// --- Moving the badge ---------------------------------------------------------------------------
+// The HUD can sit on top of other debug bars, so the badge is draggable (mouse, touch, pen) and
+// movable with Alt + arrow keys. A press that moves less than the threshold is a click.
+const DRAG_THRESHOLD_PX = 4;
+
+const dockElement = ref<HTMLElement | null>(null);
+const badgeElement = ref<HTMLElement | null>(null);
+const dragging = ref(false);
+
+interface Drag {
+  readonly pointerId: number;
+  readonly grab: { readonly x: number; readonly y: number };
+  readonly start: { readonly x: number; readonly y: number };
+  moved: boolean;
+}
+let drag: Drag | null = null;
+/** Set when a drag ends, so the click that follows the release does not also toggle the panel. */
+let suppressClick = false;
+
+function onPointerDown(event: PointerEvent): void {
+  const badge = badgeElement.value;
+  // Only the main button (or a touch or pen contact, which also report 0) starts a drag.
+  if (badge === null || event.button !== 0) return;
+  const rect = badge.getBoundingClientRect();
+  drag = {
+    pointerId: event.pointerId,
+    grab: { x: event.clientX - rect.left, y: event.clientY - rect.top },
+    start: { x: event.clientX, y: event.clientY },
+    moved: false,
+  };
+  suppressClick = false;
+  try {
+    // Keeps the move events coming even when the pointer outruns the badge.
+    badge.setPointerCapture(event.pointerId);
+  } catch {
+    // Not every environment supports capture; dragging still works while the pointer is over it.
+  }
+}
+
+function onPointerMove(event: PointerEvent): void {
+  const badge = badgeElement.value;
+  const dock = dockElement.value;
+  if (drag === null || badge === null || dock === null) return;
+  if (!drag.moved) {
+    const distance = Math.hypot(event.clientX - drag.start.x, event.clientY - drag.start.y);
+    if (distance < DRAG_THRESHOLD_PX) return;
+    drag.moved = true;
+    dragging.value = true;
+  }
+  const size = badge.getBoundingClientRect();
+  emit(
+    'move',
+    positionFromPointer({
+      pointer: { x: event.clientX, y: event.clientY },
+      grab: drag.grab,
+      area: dock.getBoundingClientRect(),
+      size: { width: size.width, height: size.height },
+    }),
+  );
+}
+
+function onPointerEnd(): void {
+  if (drag === null) return;
+  const moved = drag.moved;
+  try {
+    badgeElement.value?.releasePointerCapture(drag.pointerId);
+  } catch {
+    // The pointer is already gone (a cancelled touch, say); there is nothing left to release.
+  }
+  drag = null;
+  dragging.value = false;
+  if (moved) {
+    suppressClick = true;
+    emit('moveEnd');
+  }
+}
+
+function onBadgeClick(): void {
+  if (suppressClick) {
+    suppressClick = false;
+    return;
+  }
+  emit('toggle');
+}
+
+const ARROW_STEPS: Record<string, readonly [number, number]> = {
+  ArrowLeft: [-NUDGE_STEP, 0],
+  ArrowRight: [NUDGE_STEP, 0],
+  ArrowUp: [0, -NUDGE_STEP],
+  ArrowDown: [0, NUDGE_STEP],
+};
+
+/**
+ * The latest position this component knows of: the prop, or what it last asked for. A prop only
+ * changes after Vue has re-rendered, so two keys pressed within one task would otherwise both
+ * start from the old position and count as one.
+ */
+let latest = props.position;
+watch(
+  () => props.position,
+  (position) => {
+    latest = position;
+  },
+);
+
+function onBadgeKeydown(event: KeyboardEvent): void {
+  const step = event.altKey ? ARROW_STEPS[event.key] : undefined;
+  if (step === undefined) return;
+  event.preventDefault();
+  latest = nudgePosition(latest, step[0], step[1]);
+  emit('move', latest);
+  emit('moveEnd');
+}
+
+const docking = computed(() => dockOf(props.position));
+/**
+ * Places the badge by the fractions alone: `left: X%` of the dock plus `translateX(-X%)` of the
+ * badge's own width puts its left edge at X of the free space, whatever the sizes are.
+ */
+const badgeStyle = computed(() => {
+  const x = `${String(props.position.fx * 100)}%`;
+  const y = `${String(props.position.fy * 100)}%`;
+  return { left: x, top: y, transform: `translate(-${x}, -${y})` };
+});
 
 const KIND_LABEL: Record<HydrationMismatchKind, string> = {
   'text-mismatch': 'Text mismatch',
@@ -121,27 +262,47 @@ function cellClass(row: DiffRow, which: 'server' | 'client'): string[] {
       </div>
     </div>
 
-    <button
-      type="button"
-      class="nhd-badge"
-      :class="{ 'nhd-badge--alert': entries.length > 0 }"
-      aria-controls="nhd-panel"
-      :aria-expanded="open"
-      @click="emit('toggle')"
-    >
-      Hydration Doctor
-      <span class="nhd-count" aria-label="mismatches">{{ entries.length }}</span>
-    </button>
+    <div ref="dockElement" class="nhd-dock">
+      <button
+        ref="badgeElement"
+        type="button"
+        class="nhd-badge"
+        :class="{ 'nhd-badge--alert': entries.length > 0, 'nhd-badge--dragging': dragging }"
+        :style="badgeStyle"
+        title="Hydration Doctor. Drag to move it, or press Alt and an arrow key."
+        aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown"
+        aria-controls="nhd-panel"
+        :aria-expanded="open"
+        @click="onBadgeClick"
+        @keydown="onBadgeKeydown"
+        @pointerdown="onPointerDown"
+        @pointermove="onPointerMove"
+        @pointerup="onPointerEnd"
+        @pointercancel="onPointerEnd"
+      >
+        Hydration Doctor
+        <span class="nhd-count" aria-label="mismatches">{{ entries.length }}</span>
+      </button>
+    </div>
 
     <section
       v-if="open"
       id="nhd-panel"
       class="nhd-panel"
+      :class="[`nhd-panel--${docking.horizontal}`, `nhd-panel--${docking.vertical}`]"
       role="dialog"
       aria-label="Hydration Doctor"
     >
       <header class="nhd-header">
         <h2 class="nhd-title">Hydration mismatches</h2>
+        <button
+          v-if="customPosition"
+          type="button"
+          class="nhd-action"
+          @click="emit('resetPosition')"
+        >
+          Reset position
+        </button>
         <button v-if="entries.length > 0" type="button" class="nhd-action" @click="emit('clear')">
           Clear
         </button>

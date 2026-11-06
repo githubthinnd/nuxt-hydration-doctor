@@ -32,7 +32,7 @@ describe('resolveModuleOptions', () => {
       history: { limit: 10 },
     });
     expect(resolved.debug).toBe(true);
-    expect(resolved.hud).toEqual({ enabled: true, autoOpen: false });
+    expect(resolved.hud).toEqual({ enabled: true, autoOpen: false, position: 'bottom-right' });
     expect(resolved.history.limit).toBe(10);
     expect(resolved.sourceMap).toEqual(DEFAULT_OPTIONS.sourceMap);
   });
@@ -46,6 +46,9 @@ describe('resolveModuleOptions', () => {
     ['unknown top-level key', { hud: {}, nope: 1 }, 'hydrationDoctor.nope'],
     ['unknown nested key', { hud: { colour: 'red' } }, 'hud.colour'],
     ['non-object group', { hud: true }, 'hud'],
+    ['an unknown corner', { hud: { position: 'middle' } }, 'hud.position'],
+    ['a non-string corner', { hud: { position: 3 } }, 'hud.position'],
+    ['a wrongly cased corner', { hud: { position: 'Top-Left' } }, 'hud.position'],
     ['non-boolean flag', { enabled: 'yes' }, 'hydrationDoctor.enabled'],
     ['bad attribute name', { sourceMap: { attribute: 'loc' } }, 'sourceMap.attribute'],
     ['uppercase attribute name', { sourceMap: { attribute: 'data-Loc' } }, 'sourceMap.attribute'],
@@ -106,6 +109,13 @@ describe('runtime options', () => {
     ['a wrong attribute', { ...toRuntimeOptions(DEFAULT_OPTIONS), attribute: 'onclick' }],
     ['a zero limit', { ...toRuntimeOptions(DEFAULT_OPTIONS), historyLimit: 0 }],
     ['a malformed hud', { ...toRuntimeOptions(DEFAULT_OPTIONS), hud: { enabled: 1 } }],
+    [
+      'a hud without a valid corner',
+      {
+        ...toRuntimeOptions(DEFAULT_OPTIONS),
+        hud: { enabled: true, autoOpen: true, position: 'centre' },
+      },
+    ],
   ])('returns null instead of throwing for %s', (_label, value) => {
     expect(parseRuntimeOptions(value)).toBeNull();
   });
@@ -117,4 +127,14 @@ describe('runtime options', () => {
     });
     expect(parsed?.disabledCategories).toEqual(['invalid-html-nesting']);
   });
+
+  it.each(['bottom-right', 'bottom-left', 'top-right', 'top-left'] as const)(
+    'accepts the corner %s and carries it to the browser',
+    (position) => {
+      const resolved = resolveModuleOptions({ hud: { position } });
+      expect(resolved.hud.position).toBe(position);
+      const transported: unknown = JSON.parse(JSON.stringify(toRuntimeOptions(resolved)));
+      expect(parseRuntimeOptions(transported)?.hud.position).toBe(position);
+    },
+  );
 });

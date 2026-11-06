@@ -27,7 +27,7 @@ export default defineNuxtConfig({
     enabled: true, // still inert outside `nuxt dev`
     debug: false,
     sourceMap: { attribute: 'data-nhd-loc', exclude: ['/node_modules/'] },
-    hud: { enabled: true, autoOpen: true },
+    hud: { enabled: true, autoOpen: true, position: 'bottom-right' }, // or bottom-left, top-right, top-left
     devtools: { enabled: true },
     history: { limit: 50 },
     diagnostics: { disabledCategories: [] },
@@ -36,6 +36,10 @@ export default defineNuxtConfig({
 ```
 
 Unknown or mistyped options fail the build with the offending option path. Supports Nuxt `^3.15` and `^4`.
+
+## Moving the badge
+
+The badge may land where another debug bar already is, so it can be moved: drag it anywhere (mouse, touch or pen), or focus it and press **Alt + an arrow key**. The place you leave it is remembered in `localStorage`, and **Reset position** in the panel brings it back to the corner set by `hud.position`. The panel opens on the badge's side of the screen, next to it. A click that does not move the badge still opens and closes the panel.
 
 ## What it recognises
 
