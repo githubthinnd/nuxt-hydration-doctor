@@ -1,0 +1,25 @@
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+*.tgz
+
+# Nuxt
+.nuxt/
+.output/
+.data/
+.nitro/
+.cache/
+playground/.nuxt/
+playground/.output/
+
+# Playwright
+test-results/
+playwright-report/
+
+# Local tooling
+.DS_Store
+.env
+.env.*
+CLAUDE.md
+docs

@@ -1,0 +1,95 @@
+{
+  "name": "nuxt-hydration-doctor",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Nuxt module that intercepts, diffs and explains Vue 3 SSR hydration mismatches in development, with zero production footprint.",
+  "keywords": [
+    "nuxt",
+    "nuxt-module",
+    "vue",
+    "vue3",
+    "ssr",
+    "hydration",
+    "hydration-mismatch",
+    "devtools",
+    "debugging",
+    "typescript"
+  ],
+  "license": "MIT",
+  "author": "Nhữ Duy Thìn",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/githubthinnd/nuxt-hydration-doctor.git"
+  },
+  "bugs": {
+    "url": "https://github.com/githubthinnd/nuxt-hydration-doctor/issues"
+  },
+  "homepage": "https://github.com/githubthinnd/nuxt-hydration-doctor#readme",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/types.d.mts",
+      "import": "./dist/module.mjs"
+    }
+  },
+  "main": "./dist/module.mjs",
+  "typesVersions": {
+    "*": {
+      ".": [
+        "./dist/types.d.mts"
+      ]
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "dev": "nuxt dev playground",
+    "dev:build": "nuxt build playground",
+    "dev:prepare": "nuxt-module-build build --stub && nuxt-module-build prepare && nuxt prepare playground",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "nuxt-module-build build",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.pure.json --noEmit && tsc -p tests/tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write . --ignore-path .gitignore --ignore-path .prettierignore",
+    "format:check": "prettier --check . --ignore-path .gitignore --ignore-path .prettierignore",
+    "test": "vitest run",
+    "arch": "depcruise src --config .dependency-cruiser.cjs",
+    "verify:package": "node scripts/verify-types.mjs && publint",
+    "verify:production": "node scripts/verify-production.mjs",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run arch && npm run test && npm run build && npm run verify:package && npm run verify:production",
+    "prepublishOnly": "npm run check"
+  },
+  "dependencies": {
+    "@nuxt/devtools-kit": "^4.1.0",
+    "@nuxt/kit": "^4.6.4",
+    "@vue/compiler-sfc": "^3.5.45",
+    "magic-string": "^1.4.5",
+    "unplugin": "^3.7.0"
+  },
+  "peerDependencies": {
+    "nuxt": "^3.15.0 || ^4.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@nuxt/module-builder": "^1.0.3",
+    "@nuxt/schema": "^4.6.4",
+    "@nuxt/test-utils": "^4.3.4",
+    "@playwright/test": "^1.65.0",
+    "@types/node": "^22.20.5",
+    "dependency-cruiser": "^18.7.2",
+    "eslint": "^10.14.0",
+    "nuxt": "^4.6.4",
+    "prettier": "^3.9.10",
+    "publint": "^0.3.25",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^5.1.0"
+  }
+}
