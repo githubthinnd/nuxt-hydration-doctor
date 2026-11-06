@@ -1,33 +1,14 @@
 import type { DiffRow, DiffSegment, HtmlDiff } from '../domain/diff';
+import { tokenizeHtml } from './html-tokens';
 
 /** Beyond this many lines per side the diff is cut: the LCS table grows with the product. */
 const MAX_LINES = 400;
 const INDENT = '  ';
 
-const VOID_TAGS: ReadonlySet<string> = new Set([
-  'area',
-  'base',
-  'br',
-  'col',
-  'embed',
-  'hr',
-  'img',
-  'input',
-  'link',
-  'meta',
-  'param',
-  'source',
-  'track',
-  'wbr',
-]);
-
 export interface HtmlDiffOptions {
   /** Attribute names removed from every tag before comparing (noise such as `data-nhd-loc`). */
   readonly hideAttributes?: readonly string[];
 }
-
-/** Comments, tags (with quoted attribute values that may contain ">"), or runs of text. */
-const TOKEN = /<!--[\s\S]*?-->|<\/?[a-zA-Z][^\s>/]*(?:"[^"]*"|'[^']*'|[^>"'])*>|[^<]+|</g;
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -54,20 +35,17 @@ function toLines(html: string, hidden: readonly string[]): { lines: string[]; tr
   const lines: string[] = [];
   let depth = 0;
 
-  for (const match of html.matchAll(TOKEN)) {
-    const token = match[0];
-    if (token.startsWith('<!--')) {
-      lines.push(INDENT.repeat(depth) + token);
-    } else if (token.startsWith('</')) {
+  for (const token of tokenizeHtml(html)) {
+    if (token.kind === 'comment') {
+      lines.push(INDENT.repeat(depth) + token.raw);
+    } else if (token.kind === 'close') {
       depth = Math.max(0, depth - 1);
-      lines.push(INDENT.repeat(depth) + token.replace(/\s+/g, ' '));
-    } else if (token.startsWith('<') && token.length > 1) {
-      const tag = stripAttributes(token, hidden).replace(/\s+/g, ' ');
-      lines.push(INDENT.repeat(depth) + tag);
-      const name = /^<([a-zA-Z][^\s>/]*)/.exec(tag)?.[1]?.toLowerCase() ?? '';
-      if (!tag.endsWith('/>') && !VOID_TAGS.has(name)) depth += 1;
+      lines.push(INDENT.repeat(depth) + token.raw.replace(/\s+/g, ' '));
+    } else if (token.kind === 'open') {
+      lines.push(INDENT.repeat(depth) + stripAttributes(token.raw, hidden).replace(/\s+/g, ' '));
+      if (!token.selfClosing) depth += 1;
     } else {
-      const text = token.replace(/\s+/g, ' ').trim();
+      const text = token.raw.replace(/\s+/g, ' ').trim();
       if (text !== '') lines.push(INDENT.repeat(depth) + text);
     }
     if (lines.length > MAX_LINES) return { lines: lines.slice(0, MAX_LINES), truncated: true };

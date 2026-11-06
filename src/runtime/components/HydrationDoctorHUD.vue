@@ -53,6 +53,13 @@ const outlines = computed(() =>
   })),
 );
 
+/** A word for the confidence, so the meaning does not depend on a colour or a number alone. */
+function confidenceLabel(confidence: number): string {
+  if (confidence >= 0.8) return 'High confidence';
+  if (confidence >= 0.55) return 'Medium confidence';
+  return 'Low confidence';
+}
+
 function shortLabel(entry: HudEntry): string {
   const { issue } = entry;
   const where = issue.location === null ? '' : ` ${formatSourceLocation(issue.location)}`;
@@ -194,6 +201,44 @@ function cellClass(row: DiffRow, which: 'server' | 'client'): string[] {
           >
             <li v-for="(crumb, index) in selected.issue.breadcrumbs" :key="index">{{ crumb }}</li>
           </ol>
+
+          <section class="nhd-diagnoses" aria-label="Likely causes">
+            <h3 class="nhd-section-title">Likely cause</h3>
+            <p v-if="selected.diagnostics.length === 0" class="nhd-note">
+              No known pattern matched. Compare the two columns below: the difference between them
+              is the lead.
+            </p>
+            <article
+              v-for="diagnosis in selected.diagnostics"
+              :key="diagnosis.category"
+              class="nhd-diagnosis"
+            >
+              <h4 class="nhd-diagnosis-title">
+                {{ diagnosis.title }}
+                <span class="nhd-confidence">
+                  {{ confidenceLabel(diagnosis.confidence) }} ·
+                  {{ String(Math.round(diagnosis.confidence * 100)) }}%
+                </span>
+              </h4>
+              <p class="nhd-explanation">{{ diagnosis.explanation }}</p>
+              <ul v-if="diagnosis.evidence.length > 0" class="nhd-evidence" aria-label="Evidence">
+                <li v-for="(item, index) in diagnosis.evidence" :key="index">{{ item }}</li>
+              </ul>
+              <div v-if="diagnosis.fix !== null" class="nhd-fix">
+                <p class="nhd-fix-description">{{ diagnosis.fix.description }}</p>
+                <pre class="nhd-code" :data-language="diagnosis.fix.language">{{
+                  diagnosis.fix.code
+                }}</pre>
+                <button
+                  type="button"
+                  class="nhd-action"
+                  @click="emit('copy', diagnosis.fix?.code ?? '')"
+                >
+                  Copy fix
+                </button>
+              </div>
+            </article>
+          </section>
 
           <template v-if="selected.diff !== null">
             <p v-if="selected.diff.identical" class="nhd-note">

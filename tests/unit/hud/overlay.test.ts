@@ -19,6 +19,8 @@ function issue(overrides: Partial<HydrationIssue> = {}): HydrationIssue {
     componentName: 'Card',
     location: { file: 'a.vue', line: 3, column: 3 },
     occurrence: 0,
+    ancestry: [],
+    componentSource: null,
     serverHtml: null,
     clientHtml: null,
     breadcrumbs: [],
@@ -27,7 +29,7 @@ function issue(overrides: Partial<HydrationIssue> = {}): HydrationIssue {
   };
 }
 
-const entry = (i: HydrationIssue): HudEntry => ({ issue: i, diff: null });
+const entry = (i: HydrationIssue): HudEntry => ({ issue: i, diff: null, diagnostics: [] });
 
 /** Gives an element a fixed on-screen rectangle (happy-dom performs no layout). */
 function place(

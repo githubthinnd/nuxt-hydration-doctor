@@ -2,7 +2,7 @@
 
 A Nuxt module that finds, diffs and explains Vue 3 SSR hydration mismatches **in development**, and leaves **zero footprint in production builds**.
 
-> Status: pre-release. Phases 1 (scaffolding), 2 (source-location injection), 3 (warning interception) and 4 (HUD) are complete; the features below arrive phase by phase.
+> Status: pre-release. Phases 1 (scaffolding), 2 (source-location injection), 3 (warning interception), 4 (HUD) and 5 (diagnostics) are complete; the features below arrive phase by phase.
 
 Vue's `[Vue warn]: Hydration node mismatch` tells you something is wrong but not where. nuxt-hydration-doctor aims to give you:
 
@@ -45,8 +45,8 @@ Unknown or mistyped options fail the build with the offending option path. Suppo
 | 2     | Vite AST transform injecting `data-nhd-loc` (dev only)              | Done   |
 | 3     | Runtime plugin: warning interception and DOM capture                | Done   |
 | 4     | Shadow DOM HUD with visual diff                                     | Done   |
-| 5     | Diagnostic engine and fix suggestions                               | Next   |
-| 6     | DevTools tab, playground scenarios, Playwright E2E                  | –      |
+| 5     | Diagnostic engine and fix suggestions                               | Done   |
+| 6     | DevTools tab, playground scenarios, Playwright E2E                  | Next   |
 
 ## Development
 

@@ -35,6 +35,16 @@ export interface HydrationIssue {
   readonly serverHtml: string | null;
   /** Markup the client rendered for the same subtree. */
   readonly clientHtml: string | null;
+  /**
+   * Tag names of the offending element's ancestors, outermost first (`['html', 'body', 'div', 'p']`).
+   * Needed to spot nesting the browser repairs, such as a `<div>` that ends up inside a `<p>`.
+   */
+  readonly ancestry: readonly string[];
+  /**
+   * Compiled `setup`/`render` code of the component Vue was hydrating, as the browser holds it
+   * (`Function#toString`), or null when unavailable. Input for the source heuristics.
+   */
+  readonly componentSource: string | null;
   /** Steps that led to the mismatch, oldest first (route changes, component names…). */
   readonly breadcrumbs: readonly string[];
   readonly metrics: HydrationMetrics;

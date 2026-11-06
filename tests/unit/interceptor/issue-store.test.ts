@@ -11,6 +11,8 @@ function issue(id: string): HydrationIssue {
     componentName: null,
     location: null,
     occurrence: null,
+    ancestry: [],
+    componentSource: null,
     serverHtml: null,
     clientHtml: null,
     breadcrumbs: [],

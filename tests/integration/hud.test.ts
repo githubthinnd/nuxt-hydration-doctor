@@ -19,6 +19,8 @@ function issue(overrides: Partial<HydrationIssue> = {}): HydrationIssue {
     componentName: 'ProductCard',
     location: { file: 'components/ProductCard.vue', line: 3, column: 5 },
     occurrence: 0,
+    ancestry: [],
+    componentSource: null,
     serverHtml: '<p data-nhd-loc="components/ProductCard.vue:3:5">server text</p>',
     clientHtml: '<p data-nhd-loc="components/ProductCard.vue:3:5">client text</p>',
     breadcrumbs: ['route /products', 'during initial hydration', 'ProductCard'],
@@ -54,6 +56,7 @@ function mount(options: { autoOpen?: boolean; issues?: readonly HydrationIssue[]
         i.serverHtml !== null && i.clientHtml !== null
           ? diffHtml(i.serverHtml, i.clientHtml, { hideAttributes: [ATTR] })
           : null,
+      diagnostics: [],
     }),
     copyText: copy,
     reportInternal: (message, error) => {
@@ -244,7 +247,9 @@ describe('HUD in a shadow root', () => {
     await nextTick();
 
     expect(hud.$$('.nhd-diff')).toHaveLength(0);
-    expect(hud.$('.nhd-note')?.textContent).toContain('needs both renderings');
+    expect(
+      hud.$$('.nhd-note').some((note) => note.textContent.includes('needs both renderings')),
+    ).toBe(true);
     expect(hud.$$('.nhd-single')).toHaveLength(1);
     expect(hud.$('.nhd-meta')?.textContent).toContain('Unknown (no source location');
   });
@@ -254,7 +259,7 @@ describe('HUD in a shadow root', () => {
       issues: [issue({ serverHtml: '<p>same</p>', clientHtml: '<p>same</p>' })],
     });
     await nextTick();
-    expect(hud.$('.nhd-note')?.textContent).toContain('identical');
+    expect(hud.$$('.nhd-note').some((note) => note.textContent.includes('identical'))).toBe(true);
   });
 
   it('displays hostile markup as text and never executes or inserts it', async () => {

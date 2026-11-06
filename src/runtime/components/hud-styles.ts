@@ -144,6 +144,31 @@ button:focus-visible { outline: 2px solid #8ab4ff; outline-offset: 2px; }
 }
 .nhd-crumbs { margin: 0 0 12px; padding-left: 18px; color: var(--nhd-muted); }
 
+.nhd-section-title { margin: 0 0 6px; font-size: 13px; font-weight: 700; }
+.nhd-diagnoses { margin: 0 0 14px; }
+.nhd-diagnosis {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--nhd-border);
+  border-left: 3px solid #8ab4ff;
+  border-radius: 6px;
+  background: var(--nhd-bg-raised);
+}
+.nhd-diagnosis-title { margin: 0 0 4px; font-size: 13px; font-weight: 700; }
+.nhd-confidence { margin-left: 8px; font-weight: 400; color: var(--nhd-muted); white-space: nowrap; }
+.nhd-explanation { margin: 0 0 6px; }
+.nhd-evidence { margin: 0 0 8px; padding-left: 18px; color: var(--nhd-muted); }
+.nhd-fix-description { margin: 0 0 6px; }
+.nhd-code {
+  margin: 0 0 6px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  white-space: pre;
+  border: 1px solid var(--nhd-border);
+  border-radius: 6px;
+  background: var(--nhd-bg);
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
 .nhd-note { margin: 0 0 8px; color: var(--nhd-muted); }
 .nhd-diff {
   display: grid;

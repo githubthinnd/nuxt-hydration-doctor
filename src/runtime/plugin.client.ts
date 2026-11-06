@@ -2,11 +2,16 @@ import { defineNuxtPlugin, useRuntimeConfig } from 'nuxt/app';
 import { INTERNAL_LOG_PREFIX, RUNTIME_CONFIG_KEY } from './domain/constants';
 import { parseRuntimeOptions } from './domain/options';
 import HydrationDoctorHUD from './components/HydrationDoctorHUD.vue';
+import { diagnoseIssue } from './engine/diagnostics';
 import { diffHtml } from './engine/html-diff';
 import { mountHud } from './hud/mount-hud';
+import { collectBrowserValues } from './interceptor/environment';
 import { createInterceptor } from './interceptor/interceptor';
 import { installWarnHandler } from './interceptor/install';
 import { captureServerSnapshot } from './interceptor/snapshot';
+import { createStateWatcher, entriesFromPayload } from './interceptor/state-watch';
+import type { HudEntry } from './domain/hud';
+import type { HydrationIssue } from './domain/issue';
 
 /** Server markup larger than this is not copied: the snapshot is a dev convenience, not a must. */
 const MAX_SNAPSHOT_CHARS = 2_000_000;
@@ -68,6 +73,10 @@ const hydrationDoctorPlugin: ReturnType<typeof defineNuxtPlugin> = defineNuxtPlu
         reportInternal,
       });
 
+      // The state the server serialised, remembered now so later changes can be spotted.
+      const stateWatcher = createStateWatcher(() => entriesFromPayload(nuxtApp.payload));
+      stateWatcher.capture();
+
       installWarnHandler(
         nuxtApp.vueApp,
         (message, instance, trace) => {
@@ -94,6 +103,26 @@ const hydrationDoctorPlugin: ReturnType<typeof defineNuxtPlugin> = defineNuxtPlu
 
       if (options.hud.enabled) {
         const hud = options.hud;
+        const buildEntry = (issue: HydrationIssue): HudEntry => {
+          const diff =
+            issue.serverHtml !== null && issue.clientHtml !== null
+              ? diffHtml(issue.serverHtml, issue.clientHtml, {
+                  hideAttributes: [options.attribute],
+                })
+              : null;
+          // A failing heuristic must not hide the issue itself: show it without a diagnosis.
+          let diagnostics: HudEntry['diagnostics'] = [];
+          try {
+            diagnostics = diagnoseIssue(issue, {
+              browserValues: collectBrowserValues(window),
+              stateChanges: stateWatcher.changes(),
+              disabledCategories: options.disabledCategories,
+            });
+          } catch (error) {
+            reportInternal('could not diagnose an issue', error);
+          }
+          return { issue, diff, diagnostics };
+        };
         // Mounted after the application so the HUD is never part of the hydrated tree.
         nuxtApp.hook('app:mounted', () => {
           try {
@@ -104,15 +133,7 @@ const hydrationDoctorPlugin: ReturnType<typeof defineNuxtPlugin> = defineNuxtPlu
               api: interceptor.api,
               attribute: options.attribute,
               autoOpen: hud.autoOpen,
-              toEntry: (issue) => ({
-                issue,
-                diff:
-                  issue.serverHtml !== null && issue.clientHtml !== null
-                    ? diffHtml(issue.serverHtml, issue.clientHtml, {
-                        hideAttributes: [options.attribute],
-                      })
-                    : null,
-              }),
+              toEntry: buildEntry,
               copyText: copyToClipboard,
               observeResize,
               reportInternal,

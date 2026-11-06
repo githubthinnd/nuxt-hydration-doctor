@@ -51,6 +51,8 @@ interface PendingCapture {
    * element yet when it warns, so the element is only resolved at flush time, after patching.
    */
   readonly resolveElement: () => unknown;
+  /** Compiled component code, read when the warning arrives (before anything is patched). */
+  readonly componentSource: string | null;
 }
 
 function truncate(html: string): string {
@@ -62,6 +64,48 @@ function componentNameOf(instance: ComponentPublicInstance | null): string | nul
   const options = instance.$options as unknown as Readonly<Record<string, unknown>>;
   const name = options['name'] ?? options['__name'];
   return typeof name === 'string' && name !== '' ? name : null;
+}
+
+/** Longest component source kept; more than this is not going to help a heuristic. */
+const MAX_SOURCE_CHARS = 30_000;
+/** Options of a component whose function bodies hold the code that runs while rendering. */
+const SOURCE_OPTIONS = ['setup', 'data', 'created', 'beforeMount', 'render'] as const;
+
+/**
+ * The code of the component being hydrated, as the browser holds it: Vue compiled the
+ * `<script setup>` into a `setup` function and the template into a `render` function, and
+ * `Function#toString` returns their text. This is how the source heuristics see the component
+ * without any server round trip.
+ */
+function componentSourceOf(instance: ComponentPublicInstance | null): string | null {
+  if (instance === null) return null;
+  const parts: string[] = [];
+  try {
+    const type = instance.$.type as unknown as Readonly<Record<string, unknown>>;
+    for (const option of SOURCE_OPTIONS) {
+      const member = type[option];
+      if (typeof member === 'function') parts.push(`// ${option}\n${member.toString()}`);
+    }
+  } catch {
+    // An unusual instance (a proxy that throws, say) must not cost us the warning itself.
+    return null;
+  }
+  if (parts.length === 0) return null;
+  const source = parts.join('\n\n');
+  return source.length > MAX_SOURCE_CHARS ? source.slice(0, MAX_SOURCE_CHARS) : source;
+}
+
+/** Tag names from the root down to (not including) `element`. */
+function ancestryOf(element: Element | null): string[] {
+  const tags: string[] = [];
+  for (
+    let current = element?.parentElement ?? null;
+    current !== null;
+    current = current.parentElement
+  ) {
+    tags.unshift(current.localName);
+  }
+  return tags;
 }
 
 /** Component names from Vue's trace (`at <Inner>\n at <Outer>`), outermost first. */
@@ -122,6 +166,8 @@ export function createInterceptor(deps: InterceptorDeps): Interceptor {
       occurrence: stamp === null ? null : occurrence,
       serverHtml: serverHtml === null ? null : truncate(serverHtml),
       clientHtml: clientElement === null ? null : truncate(clientElement.outerHTML),
+      ancestry: ancestryOf(clientElement),
+      componentSource: capture.componentSource,
       breadcrumbs: capture.breadcrumbs,
       metrics: {
         detectedAt: capture.detectedAt,
@@ -165,6 +211,7 @@ export function createInterceptor(deps: InterceptorDeps): Interceptor {
         mounted ? 'after app:mounted' : 'during initial hydration',
         ...chain,
       ],
+      componentSource: componentSourceOf(instance),
       detectedAt: deps.now(),
       msSinceNavigationStart: deps.sinceNavigationStart(),
       resolveElement: () => {

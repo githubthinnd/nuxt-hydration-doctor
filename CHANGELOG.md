@@ -4,6 +4,15 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 
 ## [Unreleased]
 
+### Added (Phase 5)
+
+- `runtime/engine/diagnostics.ts` (`diagnoseIssue`) and four rules in `runtime/engine/rules/`: **browser global leaks**, **non-deterministic values** (current time, random values, time zone, locale), **invalid HTML nesting** and **state desynchronisation**. Each returns an explanation, the evidence it saw, a confidence and a copy-pasteable fix; results below the minimum confidence are dropped and a failing rule is skipped.
+- Evidence the rules use: text differences, live browser values (`interceptor/environment.ts`), the component's compiled `setup`/`render` text (`issue.componentSource`, scanned by `engine/source-scan.ts`), element ancestry (`issue.ancestry`), and `useState`/Pinia values that differ from the server payload (`interceptor/state-watch.ts`).
+- HUD: **Likely cause** section (title, confidence word and percentage, evidence, fix code with Copy fix); `diagnostics.disabledCategories` is honoured.
+- `HydrationIssue.ancestry` and `HydrationIssue.componentSource`; `HudEntry.diagnostics`; the HTML tokenizer is shared (`engine/html-tokens.ts`).
+- The interceptor no longer loses a warning when an unusual component instance throws while its source is read.
+- Tests: rule units with "must stay quiet" cases, source scanner, runtime facts, and end-to-end diagnoses of real Vue hydration mismatches.
+
 ### Added (Phase 4)
 
 - `HydrationDoctorHUD.vue` (`runtime/components`): presentational HUD, props in and events out. Floating badge with the mismatch count, issue tabs, source location (with Copy), message, breadcrumbs, and a side-by-side **Server Rendered HTML** / **Client Rendered DOM** diff with matching rows, changed rows (diverging part marked) and added/removed rows. Page content is only ever rendered as text; `vue/no-v-html` is an error.

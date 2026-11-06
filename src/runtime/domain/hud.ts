@@ -1,3 +1,4 @@
+import type { DiagnosticResult } from './diagnostic';
 import type { HtmlDiff } from './diff';
 import type { HydrationIssue } from './issue';
 
@@ -5,6 +6,8 @@ import type { HydrationIssue } from './issue';
 export interface HudEntry {
   readonly issue: HydrationIssue;
   readonly diff: HtmlDiff | null;
+  /** Likely causes, most confident first. */
+  readonly diagnostics: readonly DiagnosticResult[];
 }
 
 /** Viewport rectangle (fixed positioning) of the element an issue points at. */
