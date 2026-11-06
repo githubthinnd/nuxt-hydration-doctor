@@ -25,7 +25,8 @@ export interface HudDeps {
   readonly autoOpen: boolean;
   /** Builds the HUD's view of an issue (including its diff). */
   readonly toEntry: (issue: HydrationIssue) => HudEntry;
-  readonly copyText: (text: string) => void;
+  /** Copies text; resolves to whether it worked (nothing returned counts as worked). */
+  readonly copyText: (text: string) => Promise<boolean> | undefined;
   /**
    * Opens a source location in the editor. Absent when that is not possible (the dev endpoint it
    * goes through is off), in which case the HUD does not offer the button.
@@ -58,6 +59,8 @@ interface HudState {
   selectedId: string | null;
   open: boolean;
   position: BadgePosition;
+  /** A short message about the last copy, shown for a moment. */
+  notice: { readonly text: string; readonly ok: boolean } | null;
 }
 
 /**
@@ -106,7 +109,17 @@ export function mountHud(deps: HudDeps): HudHandle {
     selectedId: null,
     open: false,
     position: initialPosition(),
+    notice: null,
   });
+
+  let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+  function showNotice(text: string, ok: boolean): void {
+    state.notice = { text, ok };
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => {
+      state.notice = null;
+    }, 2200);
+  }
 
   const tracker = createOverlayTracker({
     document: deps.document,
@@ -148,6 +161,7 @@ export function mountHud(deps: HudDeps): HudHandle {
         open: state.open,
         canOpen: deps.openInEditor !== undefined,
         position: state.position,
+        notice: state.notice,
         customPosition: !samePosition(state.position, cornerPosition(deps.corner)),
         onMove: (position: BadgePosition) => {
           state.position = position;
@@ -176,7 +190,15 @@ export function mountHud(deps: HudDeps): HudHandle {
           tracker.setEntries([]);
         },
         onCopy: (text: string) => {
-          deps.copyText(text);
+          void Promise.resolve(deps.copyText(text)).then(
+            (copied) => {
+              if (copied === false) showNotice('Could not copy', false);
+              else showNotice('Copied to clipboard', true);
+            },
+            () => {
+              showNotice('Could not copy', false);
+            },
+          );
         },
         onOpen: (location: SourceLocation) => {
           deps.openInEditor?.(location);
@@ -194,6 +216,7 @@ export function mountHud(deps: HudDeps): HudHandle {
     host,
     unmount() {
       unsubscribe();
+      clearTimeout(noticeTimer);
       tracker.stop();
       deps.document.removeEventListener('keydown', onKeydown);
       app.unmount();

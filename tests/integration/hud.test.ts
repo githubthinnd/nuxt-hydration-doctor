@@ -167,6 +167,28 @@ describe('HUD in a shadow root', () => {
     expect(hud.copy).toHaveBeenCalledWith('components/ProductCard.vue:3:5');
   });
 
+  it('says so when the copy worked', async () => {
+    const hud = mounted({ issues: [issue()] });
+    hud.copy.mockResolvedValue(true);
+    await nextTick();
+    expect(hud.$('.nhd-toast')).toBeNull();
+    await hud.click('.nhd-loc .nhd-action');
+    await vi.waitFor(() => {
+      expect(hud.$('.nhd-toast')?.textContent.trim()).toBe('Copied to clipboard');
+    });
+    expect(hud.$('.nhd-toast--error')).toBeNull();
+  });
+
+  it('says so when the copy failed instead of staying silent', async () => {
+    const hud = mounted({ issues: [issue()] });
+    hud.copy.mockResolvedValue(false);
+    await nextTick();
+    await hud.click('.nhd-loc .nhd-action');
+    await vi.waitFor(() => {
+      expect(hud.$('.nhd-toast--error')?.textContent.trim()).toBe('Could not copy');
+    });
+  });
+
   it('switches between issues from the tabs', async () => {
     const second = issue({
       id: 'nhd-2',

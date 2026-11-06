@@ -39,8 +39,35 @@ const positionStorage = {
   },
 };
 
-function copyToClipboard(text: string): void {
-  if ('clipboard' in navigator) navigator.clipboard.writeText(text).catch(() => undefined);
+/**
+ * Copies text and says whether it worked. The async Clipboard API only exists in secure contexts
+ * (HTTPS or localhost), so a dev server opened through a LAN address needs the older
+ * `execCommand` route, which works from inside a user gesture.
+ */
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if ('clipboard' in navigator) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Permission denied or no focus: fall through to the older route.
+  }
+  try {
+    const field = document.createElement('textarea');
+    field.value = text;
+    field.setAttribute('readonly', '');
+    field.style.cssText = 'position: fixed; top: 0; left: 0; opacity: 0; pointer-events: none;';
+    document.body.append(field);
+    field.select();
+    // Deprecated, but the only way to copy where the Clipboard API is missing (non-HTTPS origins).
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    const copied = document.execCommand('copy');
+    field.remove();
+    return copied;
+  } catch {
+    return false;
+  }
 }
 
 /** Asks the dev endpoint to open `location` in the editor (it redirects to Nuxt's own route). */

@@ -31,6 +31,8 @@ const props = defineProps<{
   position: BadgePosition;
   /** True once the badge has been moved away from its starting corner. */
   customPosition: boolean;
+  /** Feedback on the last copy (done or failed), or null. */
+  notice: { text: string; ok: boolean } | null;
 }>();
 
 const emit = defineEmits<{
@@ -200,11 +202,16 @@ const outlines = computed(() =>
   })),
 );
 
+function confidenceLevel(confidence: number): 'high' | 'medium' | 'low' {
+  if (confidence >= 0.8) return 'high';
+  if (confidence >= 0.55) return 'medium';
+  return 'low';
+}
+
 /** A word for the confidence, so the meaning does not depend on a colour or a number alone. */
 function confidenceLabel(confidence: number): string {
-  if (confidence >= 0.8) return 'High confidence';
-  if (confidence >= 0.55) return 'Medium confidence';
-  return 'Low confidence';
+  const level = confidenceLevel(confidence);
+  return `${level.charAt(0).toUpperCase()}${level.slice(1)} confidence`;
 }
 
 function shortLabel(entry: HudEntry): string {
@@ -280,7 +287,21 @@ function cellClass(row: DiffRow, which: 'server' | 'client'): string[] {
         @pointerup="onPointerEnd"
         @pointercancel="onPointerEnd"
       >
-        Hydration Doctor
+        <svg
+          class="nhd-logo"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M3 12h4l2.5-6 4 12 2.5-6H21" />
+        </svg>
+        <span>Hydration Doctor</span>
         <span class="nhd-count" aria-label="mismatches">{{ entries.length }}</span>
       </button>
     </div>
@@ -294,7 +315,24 @@ function cellClass(row: DiffRow, which: 'server' | 'client'): string[] {
       aria-label="Hydration Doctor"
     >
       <header class="nhd-header">
-        <h2 class="nhd-title">Hydration mismatches</h2>
+        <h2 class="nhd-title">
+          <svg
+            class="nhd-logo"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 12h4l2.5-6 4 12 2.5-6H21" />
+          </svg>
+          Hydration mismatches
+          <span class="nhd-brand">Hydration Doctor</span>
+        </h2>
         <button
           v-if="customPosition"
           type="button"
@@ -340,7 +378,7 @@ function cellClass(row: DiffRow, which: 'server' | 'client'): string[] {
                 <button
                   v-if="canOpen && selected.issue.location !== null"
                   type="button"
-                  class="nhd-action"
+                  class="nhd-action nhd-action--primary"
                   @click="selected.issue.location !== null && emit('open', selected.issue.location)"
                 >
                   Open in editor
@@ -390,7 +428,7 @@ function cellClass(row: DiffRow, which: 'server' | 'client'): string[] {
             >
               <h4 class="nhd-diagnosis-title">
                 {{ diagnosis.title }}
-                <span class="nhd-confidence">
+                <span class="nhd-confidence" :data-level="confidenceLevel(diagnosis.confidence)">
                   {{ confidenceLabel(diagnosis.confidence) }} ·
                   {{ String(Math.round(diagnosis.confidence * 100)) }}%
                 </span>
@@ -451,6 +489,14 @@ function cellClass(row: DiffRow, which: 'server' | 'client'): string[] {
           </template>
         </template>
       </div>
+      <p
+        v-if="notice !== null"
+        class="nhd-toast"
+        :class="{ 'nhd-toast--error': !notice.ok }"
+        role="status"
+      >
+        {{ notice.text }}
+      </p>
     </section>
   </div>
 </template>
